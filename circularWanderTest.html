@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title></title>
+
+    <script type="text/javascript" src="commonJS/MathUtil.js" ></script>
+    <script type="text/javascript" src="commonJS/Geom.js" ></script>
+    <script type="text/javascript" src="commonJS/RectangleUtil.js" ></script>
+    <script type="text/javascript" src="commonJS/CircularWander.js" ></script>
+
+    <script type="text/javascript">
+
+        //==============::GA::====================================
+        (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+            (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+                m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+        })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+
+        ga('create', 'UA-44531934-1', 'devstate.net');
+
+        if(location.hostname && location.hostname.toLowerCase().indexOf("devstate")>-1){
+            ga('send', 'pageview');
+        }
+        //==============::GA::====================================
+
+        var canvas;
+        var context;
+        var wanderer;
+        var intervalId = -1;
+        var bounds
+
+        function init(){
+
+            canvas = document.createElement('canvas');
+            canvas.width = 800;
+            canvas.height = 600;
+            this.context = this.canvas.getContext("2d");
+            this.canvasContainer = document.getElementById("canvasContainer");
+            this.canvasContainer.appendChild(this.canvas);
+
+             bounds = new Sakri.Geom.Rectangle(50,50, canvas.width-100, canvas.height-100);
+
+            testCandidateCircleFinder();//TEST CIRCLE
+            //init3();//TEST LINE
+            return;
+
+            this.context.fillStyle = "#FF0000";
+
+            wanderer = new Sakri.CircularWander(bounds,3, this.context);
+
+
+            intervalId = setInterval(updateParticles, 20);
+            wanderer.breakOutFunction = function(){
+                clearInterval(intervalId);
+                console.log("BREAK OUT!");
+                updateDebug();
+            }
+
+        }
+
+        function updateParticles(){
+            wanderer.update();
+            //context.clearRect(0,0,canvas.width, canvas.height);
+            context.fillRect(wanderer.position.x, wanderer.position.y, 10,10);
+            context.fillRect(wanderer.center.x, wanderer.center.y, 10,10);
+        }
+
+        function updateDebug(){
+            console.log("updateDebug()");
+            this.context.fillStyle = "#00FF00";
+            context.fillRect(wanderer.position.x, wanderer.position.y, 10,10);
+            context.fillRect(wanderer.center.x, wanderer.center.y, 10,10);
+
+            wanderer.update();
+
+            this.context.fillStyle = "#0000FF";
+            context.fillRect(wanderer.position.x, wanderer.position.y, 10,10);
+            context.fillRect(wanderer.center.x, wanderer.center.y, 10,10);
+
+        }
+
+
+        var readyStateCheckInterval = setInterval( function() {
+            if (document.readyState === "complete") {
+                //mailNode = document.getElementById( "subscriber" );
+                clearInterval(readyStateCheckInterval);
+                init();
+            }
+        }, 10);
+
+
+
+
+
+
+        //=======================================::TEST CIRCLE::============================
+
+        var testCircle;
+        var testAngle = 0;
+        var testSpeed = (Math.PI/40) * (Math.random() > .5 ? 1 : -1);
+        var testIntervalSpeed = 30;
+        var testIntervalId = -1;
+
+        var topLine, bottomLine, leftLine, rightLine;
+        function createBoundsLines(){
+            topLine = new Sakri.Geom.Line(new Sakri.Geom.Point(bounds.x, bounds.y), new Sakri.Geom.Point(bounds.getRight(), bounds.y));
+            bottomLine = new Sakri.Geom.Line(new Sakri.Geom.Point(bounds.x, bounds.getBottom()), new Sakri.Geom.Point(bounds.getRight(), bounds.getBottom()));
+            leftLine = new Sakri.Geom.Line(new Sakri.Geom.Point(bounds.x, bounds.y), new Sakri.Geom.Point(bounds.x, bounds.getBottom()));
+            rightLine = new Sakri.Geom.Line(new Sakri.Geom.Point(bounds.getRight(), bounds.y), new Sakri.Geom.Point(bounds.getRight(), bounds.getBottom()));
+        }
+        function renderBoundsLines(){
+            if(topLine && bottomLine && leftLine && rightLine){
+                //context.strokeRect(bounds.x, bounds.y, bounds.width, bounds.height);
+                renderLine(topLine, "#CCCC00");
+                renderLine(bottomLine, "#88CC44");
+                renderLine(leftLine, "#44CC88");
+                renderLine(rightLine, "#00CCCC");
+            }
+        }
+
+        function renderLine(line, color){
+            context.beginPath();
+            context.fillStyle = -1;
+            context.strokeStyle = color;
+            context.moveTo(line.pointA.x, line.pointA.y);
+            context.lineTo(line.pointB.x, line.pointB.y);
+            context.closePath();
+            context.stroke();
+        }
+
+        function renderCircle(circle, fillStyle, strokeStyle, lineWidth){
+            context.beginPath();
+            context.fillStyle = fillStyle;
+            context.strokeStyle = strokeStyle;
+            if(!isNaN(lineWidth)){
+                context.lineWidth = lineWidth;
+            }
+            context.arc(circle.x, circle.y, circle.radius, 0, Sakri.MathUtil.PI2);
+            context.closePath();
+            if(fillStyle!=-1){
+                context.fill();
+            }
+            if(strokeStyle!=-1){
+                context.stroke();
+            }
+        }
+
+        var testRadiusLine = new Sakri.Geom.Line();
+        var boundsIntersectLine = new Sakri.Geom.Line();
+
+        var candidateCircle1 = new Sakri.Geom.Circle();
+        var candidateCircle2 = new Sakri.Geom.Circle();
+
+        var candidateCircleA = new Sakri.Geom.Circle();
+        var candidateCircleB = new Sakri.Geom.Circle();
+
+        function testCandidateCircleFinder(){
+            var radius = 20 + Math.random()*(bounds.getSmallerSide()/4);
+            testCircle = new Sakri.Geom.Circle(bounds.getCenterX(), bounds.getCenterY(), radius);
+            createBoundsLines();
+            //console.log("bounds : ", bounds.toString());
+            //console.log("testCircle : ", testCircle.toString());
+
+            testRadiusLine.pointA.update(testCircle.x, testCircle.y);
+
+            testIntervalId = setInterval(updateTestCircle, testIntervalSpeed);
+
+            //updateButtonFunction = updateTestCircle;
+        }
+
+
+        function updateTestCircle(){
+
+            context.clearRect(0,0,canvas.width, canvas.height);
+
+            context.lineWidth = 1;
+            context.fillStyle = -1;
+
+            renderBoundsLines();
+
+            testRadiusLine.pointB.x = testCircle.x + Math.cos(testAngle)*testCircle.radius;
+            testRadiusLine.pointB.y = testCircle.y + Math.sin(testAngle)*testCircle.radius;
+            testRadiusLine.updateLineProperties();
+
+            context.lineWidth = 1;
+
+            context.strokeStyle = "#FF0000";
+
+            context.beginPath();
+            context.arc(testCircle.x, testCircle.y, testCircle.radius, 0, Sakri.MathUtil.PI2);
+            context.stroke();
+
+            context.beginPath();
+
+            context.arc(testRadiusLine.pointB.x, testRadiusLine.pointB.y, 10, 0, Sakri.MathUtil.PI2);
+            context.stroke();
+
+            //draws out the "intersection" line with the diameter of the circle and the bounding box
+            var intersectionA = Sakri.Geom.Line.getIntersection(testRadiusLine, topLine);
+            var intersectionB;
+            if(intersectionA && bounds.containsPoint(intersectionA.x, intersectionA.y)){
+                intersectionB = Sakri.Geom.Line.getIntersection(testRadiusLine, bottomLine);
+            }else{
+                intersectionA = Sakri.Geom.Line.getIntersection(testRadiusLine, leftLine);
+                intersectionB = Sakri.Geom.Line.getIntersection(testRadiusLine, rightLine);
+            }
+
+            boundsIntersectLine.update(intersectionA, intersectionB);
+            renderLine(boundsIntersectLine, "#00FF00");
+
+            updateCandidateCircle(candidateCircle1, testRadiusLine, testAngle);
+            updateCandidateCircle(candidateCircle2, testRadiusLine, Sakri.MathUtil.constrainRadianTo2PI(testAngle-Math.PI));
+
+            renderCircle(candidateCircle1, -1, "#FF0000", 1);
+            renderCircle(candidateCircle2, -1, "#0000FF", 1);
+
+            testAngle += testSpeed;
+            testAngle = Sakri.MathUtil.constrainRadianTo2PI(testAngle);
+
+        }
+
+
+        function updateCandidateCircle(candidateCircle, radiusLine, radian){
+            var point = radiusLine.pointB;//pointB is travelling particle, pointA is the current center Point
+            switch(radian){
+                //horizontal
+                case 0:
+                    candidateCircle.x = point.x + (bounds.getRight() - point.x)/2;
+                    candidateCircle.y = point.y;
+                    candidateCircle.radius = bounds.getRight() - candidateCircle.x;
+                    return;
+                case Math.PI:
+                    candidateCircle.x = bounds.x + (point.x-bounds.x)/2;
+                    candidateCircle.y = point.y;
+                    candidateCircle.radius = candidateCircle.x-bounds.x;
+                    return;
+                //vertical
+                case Sakri.MathUtil.HALF_PI:
+                    candidateCircle.x = point.x;
+                    candidateCircle.y = point.y + (bounds.getBottom() - point.y)/2;
+                    candidateCircle.radius = bounds.getBottom() - candidateCircle.y;
+                    return;
+                case Sakri.MathUtil.PI_AND_HALF:
+                    candidateCircle.x = point.x;
+                    candidateCircle.y = bounds.y + (point.y-bounds.y)/2;
+                    candidateCircle.radius = candidateCircle.y - bounds.y;
+                    return;
+            }
+
+            var angleZone = Math.floor(radian / Sakri.MathUtil.HALF_PI);//all options can be calculated within 90° "zones"
+            var vertexAngle;//isosceles triangles have one unique angle called the vertex angle
+            var baseAngle;//isosceles triangles have two equal angles called the base angles
+            var baseRadian;//angle of isosceles triangle base line, used to calculate intersection with a boundary wall
+            var candidateDiameter;//diameter of maximum size circle between "point" and a wall
+
+            switch(angleZone){
+                case 0:
+                    //Candidate from right wall
+                    vertexAngle = Math.PI - radian; //180 - radian
+                    baseAngle = (Math.PI - vertexAngle) / 2;//180 minus vertex angle divided by 2
+                    baseRadian = radian - baseAngle;
+                    candidateDiameter = (bounds.getRight() - point.x) / Math.cos(baseRadian);
+                    candidateCircleA.y = point.y + Math.sin(baseRadian) * candidateDiameter;
+                    candidateCircleA.x = radiusLine.getXatY(candidateCircleA.y);
+                    candidateCircleA.radius = Sakri.Geom.Point.distanceBetweenTwoPoints(point, candidateCircleA);//candidateCircle extends point
+
+                    //Candidate from bottom wall
+                    vertexAngle = Sakri.MathUtil.HALF_PI + radian; //90 + radian
+                    baseAngle = (Math.PI - vertexAngle) / 2;//180 minus vertex angle divided by 2
+                    baseRadian = radian + baseAngle;
+                    candidateDiameter = (bounds.getBottom() - point.y) / Math.sin(baseRadian);
+                    candidateCircleB.x = point.x + Math.cos(baseRadian) * candidateDiameter;
+                    candidateCircleB.y = radiusLine.getYatX(candidateCircleB.x);
+                    candidateCircleB.radius = Sakri.Geom.Point.distanceBetweenTwoPoints(point, candidateCircleB);//candidateCircle extends point
+                    break;
+                case 1:
+                    //Candidate from left wall
+                    vertexAngle = radian;
+                    baseAngle = (Math.PI - vertexAngle) / 2;//180 minus vertex angle divided by 2
+                    baseRadian = radian + baseAngle;
+                    candidateDiameter = (bounds.x - point.x) / Math.cos(baseRadian);
+                    candidateCircleA.y = point.y + Math.sin(baseRadian) * candidateDiameter;
+                    candidateCircleA.x = radiusLine.getXatY(candidateCircleA.y);
+                    candidateCircleA.radius = Sakri.Geom.Point.distanceBetweenTwoPoints(point, candidateCircleA);//candidateCircle extends point
+
+                    //Candidate from bottom wall
+                    vertexAngle = Math.PI-radian + Sakri.MathUtil.HALF_PI;
+                    baseAngle = (Math.PI - vertexAngle) / 2;//180 minus vertex angle divided by 2
+                    baseRadian = radian - baseAngle;
+                    candidateDiameter = (bounds.getBottom() - point.y) / Math.sin(baseRadian);
+                    candidateCircleB.x = point.x + Math.cos(baseRadian) * candidateDiameter;
+                    candidateCircleB.y = radiusLine.getYatX(candidateCircleB.x);
+                    candidateCircleB.radius = Sakri.Geom.Point.distanceBetweenTwoPoints(point, candidateCircleB);//candidateCircle extends point
+                    break;
+                case 2:
+                    //Candidate from left wall
+                    vertexAngle = Sakri.MathUtil.PI2 - radian;//360 - angle
+                    baseAngle = (Math.PI - vertexAngle) / 2;//180 minus vertex angle divided by 2
+                    baseRadian = radian - baseAngle;
+                    candidateDiameter = (bounds.x - point.x) / Math.cos(baseRadian);
+                    candidateCircleA.y = point.y + Math.sin(baseRadian) * candidateDiameter;
+                    candidateCircleA.x = radiusLine.getXatY(candidateCircleA.y);
+                    candidateCircleA.radius = Sakri.Geom.Point.distanceBetweenTwoPoints(point, candidateCircleA);//candidateCircle extends point
+
+                    //Candidate from top wall
+                    vertexAngle = radian - Math.PI + Sakri.MathUtil.HALF_PI;
+                    baseAngle = (Math.PI - vertexAngle) / 2;//180 minus vertex angle divided by 2
+                    baseRadian = radian + baseAngle;
+                    candidateDiameter = (bounds.y - point.y) / Math.sin(baseRadian);
+                    candidateCircleB.x = point.x + Math.cos(baseRadian) * candidateDiameter;
+                    candidateCircleB.y = radiusLine.getYatX(candidateCircleB.x);
+                    candidateCircleB.radius = Sakri.Geom.Point.distanceBetweenTwoPoints(point, candidateCircleB);//candidateCircle extends point
+                    break;
+                case 3:
+                    //Candidate from right wall
+                    vertexAngle = Math.PI - (Sakri.MathUtil.PI2-radian);//360 - angle
+                    baseAngle = (Math.PI - vertexAngle) / 2;//180 minus vertex angle divided by 2
+                    baseRadian = radian + baseAngle;
+                    candidateDiameter = (bounds.getRight() - point.x) / Math.cos(baseRadian);
+                    candidateCircleA.y = point.y + Math.sin(baseRadian) * candidateDiameter;
+                    candidateCircleA.x = radiusLine.getXatY(candidateCircleA.y);
+                    candidateCircleA.radius = Sakri.Geom.Point.distanceBetweenTwoPoints(point, candidateCircleA);//candidateCircle extends point
+
+                    //Candidate from top wall
+                    vertexAngle = Sakri.MathUtil.PI2 - radian + Sakri.MathUtil.HALF_PI;
+                    baseAngle = (Math.PI - vertexAngle) / 2;//180 minus vertex angle divided by 2
+                    baseRadian = radian - baseAngle;
+                    candidateDiameter = (bounds.y - point.y) / Math.sin(baseRadian);
+                    candidateCircleB.x = point.x + Math.cos(baseRadian) * candidateDiameter;
+                    candidateCircleB.y = radiusLine.getYatX(candidateCircleB.x);
+                    candidateCircleB.radius = Sakri.Geom.Point.distanceBetweenTwoPoints(point, candidateCircleB);//candidateCircle extends point
+                    break;
+            }
+
+            //the smaller circle is always within bounds
+            var smaller = candidateCircleA.radius < candidateCircleB.radius ? candidateCircleA : candidateCircleB;
+            candidateCircle.update(smaller.x, smaller.y, smaller.radius);
+
+        }
+
+
+
+        //=======================================::TEST LINE::============================
+
+        var testLineLRDown;
+        var testLineLRUp;
+        var testLineRLDown;
+        var testLineRLUp;
+
+        function testXatYWithLine(line, y, color){
+            console.log("testXatYWithLine() y : ", y);
+            console.log("\tline : ", line.toString());
+            var x = line.getXatY(y);
+            console.log("\tx : ", x);
+            context.strokeStyle = color;
+            context.beginPath();
+            context.moveTo(line.pointA.x, line.pointA.y);
+            context.lineTo(x, y);
+            context.closePath();
+            context.stroke();
+        }
+
+        function testYatXWithLine(line, x, color){
+            console.log("testYatXWithLine() x : ", x);
+            var y = line.getYatX(x);
+            console.log("\ty : ", y);
+            context.strokeStyle = color;
+            context.beginPath();
+            context.moveTo(line.pointA.x, line.pointA.y);
+            context.lineTo(x, y);
+            context.closePath();
+            context.stroke();
+        }
+
+        function init3(){
+            createBoundsLines();
+            renderBoundsLines();
+
+            testLineLRDown = new Sakri.Geom.Line(   new Sakri.Geom.Point(bounds.x+bounds.width/4-50, this.bounds.getCenterY()-50 ),
+                    new Sakri.Geom.Point(bounds.x+bounds.width/4+50, this.bounds.getCenterY()+50)
+            );
+            testLineLRUp = new Sakri.Geom.Line( new Sakri.Geom.Point(bounds.x+bounds.width/4-50, this.bounds.getCenterY()+50),
+                    new Sakri.Geom.Point(bounds.x+bounds.width/4+50, this.bounds.getCenterY()-50)
+            );
+
+            testLineRLDown = new Sakri.Geom.Line(   new Sakri.Geom.Point(bounds.x+bounds.width*.75+50, this.bounds.getCenterY()-50 ),
+                    new Sakri.Geom.Point(bounds.x+bounds.width*.75-50, this.bounds.getCenterY()+50)
+            );
+            testLineRLUp = new Sakri.Geom.Line( new Sakri.Geom.Point(bounds.x+bounds.width*.75+50, this.bounds.getCenterY()+50),
+                    new Sakri.Geom.Point(bounds.x+bounds.width*.75-50, this.bounds.getCenterY()-50)
+            );
+
+            //render lines
+            this.context.strokeStyle = "#CCCCCC";
+            this.context.fillStyle = -1;
+            this.context.lineWidth = 6;
+            renderLine(testLineLRDown);
+            renderLine(testLineLRUp);
+            renderLine(testLineRLDown);
+            renderLine(testLineRLUp);
+
+            //testXatYandYatX();
+            testIntersections();
+        }
+
+        function testXatYandYatX(){
+            console.log("testXatYandYatX()");
+            this.context.lineWidth = 1;
+
+            testYatXWithLine(testLineLRDown, bounds.x, "#FF0000");
+            testXatYWithLine(testLineLRDown, bounds.getBottom(), "#0000FF");
+
+            testXatYWithLine(testLineLRUp, bounds.y, "#FF0000");
+            testYatXWithLine(testLineLRUp, bounds.x, "#0000FF");
+
+            testYatXWithLine(testLineRLDown, bounds.getRight(), "#FF0000");
+            testXatYWithLine(testLineRLDown, bounds.getBottom(), "#0000FF");
+
+            testYatXWithLine(testLineRLUp, bounds.getRight(), "#FF0000");
+            testXatYWithLine(testLineRLUp, bounds.y, "#0000FF");
+
+        }
+
+        function testIntersections(){
+            console.log("testIntersections()");
+            this.context.lineWidth = 1;
+
+            //all test lines should intersect with all bounds lines
+            var boundsLines = [topLine, bottomLine, leftLine, rightLine];
+            var testLines = [testLineLRDown, testLineLRUp, testLineRLDown, testLineRLUp];
+            var i,j;
+            for(i=0;i<boundsLines.length;i++){
+                for(j=0;j<testLines.length;j++){
+                    if(!Sakri.Geom.Line.intersects(boundsLines[i], testLines[j])){
+                        console.log("\t boundsLines[",i,"] and testLines[",j,"] did NOT intersect!");
+                    }
+                }
+            }
+
+            //non intersecting tests
+            if(Sakri.Geom.Line.intersects(topLine, bottomLine)){
+                console.log("topLine and bottomLine intersect, this should NOT happen!");
+            }
+            if(Sakri.Geom.Line.intersects(leftLine, rightLine)){
+                console.log("leftLine and rightLine intersect, this should NOT happen!");
+            }
+            if(Sakri.Geom.Line.intersects(testLineLRDown, testLineRLUp)){
+                console.log("testLineLRDown and testLineRLUp intersect, this should NOT happen!");
+            }
+            if(Sakri.Geom.Line.intersects(testLineLRUp, testLineRLDown)){
+                console.log("testLineLRDown and testLineRLDown intersect, this should NOT happen!");
+            }
+
+
+            //test intersection
+
+            var intersection;
+            var strokeStyles = ["#000000", "#FF5555", "#99FF99", "#CCCCFF"];
+            var lineWidths = [10, 6, 3, 1];
+
+            for(i=0;i<boundsLines.length;i++){
+                context.strokeStyle = strokeStyles[i];
+                context.lineWidth = lineWidths[i];
+                for(j=0;j<testLines.length;j++){
+                    intersection = Sakri.Geom.Line.getIntersection(boundsLines[i], testLines[j]);
+                    if(!intersection){
+                        console.log("\t boundsLines[",i,"] and testLines[",j,"] NO INTERSECTION FOUND!");
+                    }else{
+                        context.beginPath();
+                        context.moveTo(testLines[j].pointA.x, testLines[j].pointA.y);
+                        context.lineTo(intersection.x, intersection.y);
+                        context.closePath();
+                        context.stroke();
+                    }
+                }
+            }
+
+        }
+
+        var updateButtonFunction;
+        function updateClickHandler(){
+            if(updateButtonFunction){
+                updateButtonFunction();
+            }
+        }
+
+
+    </script>
+
+</head>
+<body>
+    <button type="button" onclick="updateClickHandler()">update</button>
+    <p id = "logger" ></p>
+    <div id="canvasContainer"></div>
+</body>
+</html>

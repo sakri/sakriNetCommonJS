@@ -4,6 +4,6 @@ These are mostly used in the context of programming graphics and animations.
 
 MathUtil.js contains mostly helper functions for working with Radians, some linear interpolation methods
 
-Geom.js contains classes for Point, Triangle, Rectangle, Rounded Rectangle
+Geom.js contains classes for Point, Line, Triangle, Rectangle, Rounded Rectangle
 
 RectangleUtil contains a number of helper methods to manipulate Rectangle objects

@@ -20,6 +20,11 @@
         return new Sakri.Geom.Point(this.x,this.y);
     };
 
+    Sakri.Geom.Point.prototype.update = function(x, y){
+        this.x = isNaN(x) ? this.x : x;
+        this.y = isNaN(y) ? this.y : y;
+    };
+
     Sakri.Geom.Point.prototype.equals = function(point){
         return this.x==point.x && this.y==point.y;
     };
@@ -28,12 +33,16 @@
         return "{x:"+this.x+" , y:"+this.y+"}";
     };
 
-    Sakri.Geom.distanceBetweenTwoPoints = function( point1, point2 ){
+    Sakri.Geom.Point.interpolate = function(pointA, pointB, normal){
+        return new Sakri.Geom.Point(Sakri.MathUtil.interpolate(normal, pointA.x, pointB.x) , Sakri.MathUtil.interpolate(normal, pointA.y, pointB.y));
+    };
+
+    Sakri.Geom.Point.distanceBetweenTwoPoints = function( point1, point2 ){
         //console.log("Math.pow(point2.x - point1.x,2) : ",Math.pow(point2.x - point1.x,2));
         return Math.sqrt( Math.pow(point2.x - point1.x,2) + Math.pow(point2.y - point1.y,2) );
     };
 
-    Sakri.Geom.angleBetweenTwoPoints = function(p1,p2){
+    Sakri.Geom.Point.angleBetweenTwoPoints = function(p1,p2){
         return Math.atan2(p1.y-p2.y, p1.x-p2.x);
     };
 
@@ -47,6 +56,145 @@
 
 
     //==================================================
+    //=====================::LINE::====================
+    //==================================================    
+
+    Sakri.Geom.Line = function(pointA, pointB){
+        this.pointA = pointA ? pointA : new Sakri.Geom.Point();
+        this.pointB = pointB ? pointB : new Sakri.Geom.Point();
+        this.updateLineProperties();
+    };
+
+    //=================:: Static methods
+
+    //first check for horizontal+vertical lines? no division by 0?!
+    Sakri.Geom.Line.getSlope = function(pointA,pointB){
+        return (pointA.y - pointB.y) / (pointA.x - pointB.x);
+    };
+
+    Sakri.Geom.Line.getYIntercept = function(point,slope){
+        //slope intercept : y = mx + b
+        return point.y - point.x * slope;
+    };
+
+    //checks for parallel lines
+    Sakri.Geom.Line.intersects = function(line1, line2){
+        if(line1.isVertical() && line2.isVertical()){
+            //if(line1.this.pointB.equals(line2.this.pointA))return  line1.this.pointB;
+            //throw new Error("Line.getIntersection() ERROR Two vertical lines cannot intersect");
+            console.log("Line.getIntersection() ERROR Two vertical lines cannot intersect");
+            return false;
+        }
+        if(line1.isHorizontal() && line2.isHorizontal()){
+            //if(line1.this.pointB.equals(line2.this.pointA))return  line1.this.pointB;
+            //throw new Error("Line.getIntersection() ERROR Two horizontal lines cannot intersect");
+            console.log("Line.getIntersection() ERROR Two horizontal lines cannot intersect");
+            return false;
+        }
+        if(line1.slope == line2.slope){
+            //throw new Error("Line.getIntersection() ERROR Two Parallel lines cannot intersect");
+            console.log("Line.getIntersection() ERROR Two Parallel lines cannot intersect");
+            return false;
+        }
+        return true;
+    };
+
+    //returns a Sakri.Geom.Point or null
+    //TODO : create alternative where new Points are not instantiated on every call, maybe pass a Point as an arg?
+    Sakri.Geom.Line.getIntersection = function(line1, line2){
+        //slope intercept : y = mx + b
+        //m1 * x + b1 - y = m2 * x + b2 - y
+        //m1 * x + b1 - b2 = m2 * x;
+        //m1 * x - m2 * x = b2 - b1;
+        //x * (m1 - m2) = b2 - b1
+
+        if(!Sakri.Geom.Line.intersects(line1, line2)){
+            return null;
+        }
+
+        //PERPENDICULAR LINES
+        if(line1.isHorizontal() && line2.isVertical()){
+            return new Sakri.Geom.Point(line2.pointA.x, line1.pointA.y);
+        }
+        if(line2.isHorizontal() && line1.isVertical()){
+            return new Sakri.Geom.Point(line1.pointA.x, line2.pointA.y);
+        }
+
+        //ONE HORIZONTAL OR VERTICAL
+        if(line1.isHorizontal()){
+            return new Sakri.Geom.Point(line2.getXatY(line1.pointA.y), line1.pointA.y);
+        }
+        if(line1.isVertical()){
+            return new Sakri.Geom.Point(line1.pointA.x, line2.getYatX(line1.pointA.x));
+        }
+
+        if(line2.isHorizontal()){
+            return new Sakri.Geom.Point(line1.getXatY(line2.pointA.y),line2.pointA.y);
+        }
+        if(line2.isVertical()){
+            return new Sakri.Geom.Point(line2.pointA.x,line1.getYatX(line2.pointA.x));
+        }
+
+        var p = new Sakri.Geom.Point();
+        //console.log("line1.slope : "+line1.slope);
+        //console.log("line2.slope : "+line2.slope);
+        p.x = (line2.yIntercept - line1.yIntercept) / (line1.slope - line2.slope);
+        p.y = line1.getYatX(p.x);
+        return p;
+    };
+
+    //=================:: public methods
+
+    Sakri.Geom.Line.prototype.isHorizontal = function(){
+        return this.pointA.y == this.pointB.y;
+    };
+
+    Sakri.Geom.Line.prototype.isVertical = function(){
+        return this.pointA.x == this.pointB.x;
+    };
+
+    Sakri.Geom.Line.prototype.getYatX = function(x){
+        if(this.isHorizontal()){
+            return this.pointA.y;
+        }
+        if(this.isVertical()){
+            return NaN;
+        }//throw error?
+        return this.slope * x + this.yIntercept;
+    };
+
+    Sakri.Geom.Line.prototype.getXatY = function(y){
+        if(this.isVertical()){
+            return this.pointA.x;
+        }
+        if(this.isHorizontal()){
+            return NaN;
+        }//throw error?
+        return (y - this.yIntercept)/this.slope;
+    };
+
+    Sakri.Geom.Line.prototype.update = function(pointA, pointB){
+        if(pointA){
+            this.pointA.x = isNaN(pointA.x) ? this.pointA.x : pointA.x;
+            this.pointA.y = isNaN(pointA.y) ? this.pointA.y : pointA.y;
+        }
+        if(pointB){
+            this.pointB.x = isNaN(pointB.x) ? this.pointB.x : pointB.x;
+            this.pointB.y = isNaN(pointB.y) ? this.pointB.y : pointB.y;
+        }
+        this.updateLineProperties();
+    };
+
+    Sakri.Geom.Line.prototype.updateLineProperties = function(){
+        this.slope = Sakri.Geom.Line.getSlope(this.pointA, this.pointB);
+        this.yIntercept = Sakri.Geom.Line.getYIntercept(this.pointA, this.slope);
+    };
+
+    Sakri.Geom.Line.prototype.toString = function(){
+        return "Line{a : "+this.pointA.toString()+" , b : "+this.pointB.toString()+" , slope : "+this.slope+" , yIntercept : "+this.yIntercept+"}";
+    };
+    
+    // ==================================================
     //=====================::TRIANGLE::====================
     //==================================================
 
@@ -121,6 +269,13 @@
 		this.width = isNaN(width) ? 0 : width;
 		this.height = isNaN(height) ? 0 : height;
 	};
+
+    Sakri.Geom.Rectangle.prototype.inflate = function(x, y){
+        this.x -= isNaN(x) ? 0 : x;
+        this.y -= isNaN(y) ? 0 : y;
+        this.width += isNaN(x) ? 0 : x * 2;
+        this.height += isNaN(y) ? 0 : y * 2;
+    };
 	
 	Sakri.Geom.Rectangle.prototype.updateToRect = function(rect){
 		this.x = rect.x;
@@ -154,6 +309,10 @@
         return this.x + this.width/2;
     };
 
+    Sakri.Geom.Rectangle.prototype.getCenterY=function(){
+        return this.y + this.height/2;
+    };
+
     Sakri.Geom.Rectangle.prototype.containsPoint = function(x, y){
         return x >= this.x && y >= this.y && x <= this.getRight() && y <= this.getBottom();
     };
@@ -165,9 +324,6 @@
         return new Sakri.Geom.Point(this.x+this.width/2,this.y+this.height/2);
     };
 
-    Sakri.Geom.Rectangle.prototype.getCenterY=function(){
-        return this.y + this.height/2;
-    };
 	Sakri.Geom.Rectangle.prototype.isSquare = function(){
 		return this.width == this.height;
 	};
@@ -269,6 +425,41 @@
 	Sakri.Geom.RoundedRectangle.prototype.clone = function(){
 		return new Sakri.Geom.RoundedRectangle(this.x,this.y,this.width,this.height,this.radius);
 	};
+
+    //==================================================
+    //=====================::CIRCLE::===================
+    //==================================================
+
+    Sakri.Geom.Circle = function (x,y,radius){
+        Sakri.Geom.Point.call(this,x,y); //call super constructor.
+        this.radius = isNaN(radius) ? 10 : radius;// not sure if this should just be 0?
+    };
+
+    //subclass extends superclass
+    Sakri.Geom.Circle.prototype = Object.create(Sakri.Geom.Point.prototype);
+    Sakri.Geom.Circle.prototype.constructor = Sakri.Geom.Point;
+
+    Sakri.Geom.Circle.prototype.getRandomPointInCircle = function(){
+        var radius = Math.random() * this.radius;
+        var radian = Math.random() * SimpleGeometry.PI2;
+        var x = this.x + Math.cos(radian) * radius;
+        var y = this.y + Math.sin(radian) * radius;
+        return new Sakri.Geom.Point(x, y);
+    };
+
+    Sakri.Geom.Circle.prototype.update = function(x,y,radius){
+        this.x = isNaN(x) ? this.x : x;
+        this.y = isNaN(y) ? this.y : y;
+        this.radius = isNaN(radius) ? this.radius : radius;
+    }
+
+    Sakri.Geom.Circle.prototype.clone = function(){
+        return new Sakri.Geom.Circle(this.x,this.y,this.radius);
+    };
+
+    Sakri.Geom.Circle.prototype.toString = function(){
+        return "Circle{x : "+this.x+" , y : "+this.y+" , radius : "+this.radius+"}";
+    };
 
 
     //==================================================

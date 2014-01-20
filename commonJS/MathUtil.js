@@ -12,15 +12,16 @@
 	//precalculations for values of 90, 270 and 360 in radians
 	Sakri.MathUtil.PI2 = Math.PI*2;
 	Sakri.MathUtil.HALF_PI = Math.PI/2;
+	Sakri.MathUtil.PI_AND_HALF = Math.PI+ Math.PI/2;
 	Sakri.MathUtil.NEGATIVE_HALF_PI = -Math.PI/2;
 
     //keep degrees between 0 and 360
     Sakri.MathUtil.constrainDegreeTo360 = function(degree){
-        return (360+degree%360)%360;//hmmm... looks a bit weird?!
+        return (360 + degree % 360) % 360;//hmmm... looks a bit weird?!
     };
 
     Sakri.MathUtil.constrainRadianTo2PI = function(rad){
-        return (Sakri.MathUtil.PI2+rad%Sakri.MathUtil.PI2)%Sakri.MathUtil.PI2;//equally so...
+        return (Sakri.MathUtil.PI2 + rad % Sakri.MathUtil.PI2) % Sakri.MathUtil.PI2;//equally so...
     };
 
     Sakri.MathUtil.radiansToDegrees = function(rad){
@@ -28,7 +29,7 @@
     };
 
     Sakri.MathUtil.degreesToRadians = function(degree){
-        return degree*Sakri.MathUtil.PI_180;
+        return degree * Sakri.MathUtil.PI_180;
     };
 
 
@@ -52,21 +53,25 @@
 
 
     Sakri.MathUtil.clamp = function(min,max,value){
-        if(value<min)return min;
-        if(value>max)return max;
+        if(value < min){
+            return min;
+        }
+        if(value > max){
+            return max;
+        }
         return value;
     };
 
     Sakri.MathUtil.clampRGB = function(value){
-        return Sakri.MathUtil.clamp(0,255,value);
+        return Sakri.MathUtil.clamp(0, 255, value);
     };
 
-	Sakri.MathUtil.getRandomNumberInRange = function(min,max){
-		return min+Math.random()*(max-min);
+	Sakri.MathUtil.getRandomNumberInRange = function(min, max){
+		return min + Math.random() * (max - min);
 	};
 	
-	Sakri.MathUtil.getRandomIntegerInRange = function(min,max){
-		return Math.round(Sakri.MathUtil.getRandomNumberInRange(min,max));
+	Sakri.MathUtil.getRandomIntegerInRange = function(min, max){
+		return Math.round(Sakri.MathUtil.getRandomNumberInRange(min, max));
 	};
 
     //Move to geom?

@@ -60,11 +60,15 @@
     };
 
     Sakri.Geom.RectangleUtil.createRandomXIn = function(rect){
-        return SakriMathUtil.getRandomNumberInRange(rect.x, rect.getRight());
+        return Sakri.MathUtil.getRandomNumberInRange(rect.x, rect.getRight());
     };
 
     Sakri.Geom.RectangleUtil.createRandomYIn = function(rect){
         return SakriMathUtil.getRandomNumberInRange(rect.y,rect.getBottom());
+    };
+
+    Sakri.Geom.RectangleUtil.createRandomPointInRect = function(rect){
+        return new Sakri.Geom.Point(Sakri.Geom.RectangleUtil.createRandomXIn(rect), Sakri.Geom.RectangleUtil.createRandomXIn(rect));
     };
 
     Sakri.Geom.RectangleUtil.rectanglesIntersect = function(rectA, rectB){
