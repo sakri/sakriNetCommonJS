@@ -270,6 +270,7 @@
 		this.height = isNaN(height) ? 0 : height;
 	};
 
+    //TODO : doesn't work
     Sakri.Geom.Rectangle.prototype.inflate = function(x, y){
         this.x -= isNaN(x) ? 0 : x;
         this.y -= isNaN(y) ? 0 : y;
@@ -455,6 +456,10 @@
 
     Sakri.Geom.Circle.prototype.clone = function(){
         return new Sakri.Geom.Circle(this.x,this.y,this.radius);
+    };
+
+    Sakri.Geom.Circle.prototype.containsPoint = function(point){
+        return Sakri.Geom.Point.distanceBetweenTwoPoints(point, this) <= this.radius;
     };
 
     Sakri.Geom.Circle.prototype.toString = function(){
