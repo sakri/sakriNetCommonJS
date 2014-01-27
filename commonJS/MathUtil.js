@@ -78,5 +78,19 @@
 	Sakri.MathUtil.getCircumferenceOfEllipse = function(width,height){
 		return ((Math.sqrt(.5 * ((width * width) + (height * height)))) * (Math.PI * 2)) / 2;
 	};
+
+
+    //following two from : http://stackoverflow.com/questions/6735470/get-pixel-color-from-canvas-on-mouseover
+    Sakri.MathUtil.getHexStringFromRGB = function(r, g, b) {
+        return "#" + ("000000" + Sakri.MathUtil.rgbToHex(r, g, b)).slice(-6);
+    }
+
+    Sakri.MathUtil.rgbToHex = function(r, g, b) {
+        r = Sakri.MathUtil.clamp(0, 255, r);
+        g = Sakri.MathUtil.clamp(0, 255, g);
+        b = Sakri.MathUtil.clamp(0, 255, b);
+        return ((r << 16) | (g << 8) | b).toString(16);
+    }
+
 	
 }(window));

@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title></title>
+    <title>Circular Wander Test</title>
 
     <script type="text/javascript" src="commonJS/MathUtil.js" ></script>
     <script type="text/javascript" src="commonJS/Geom.js" ></script>
@@ -10,18 +10,20 @@
 
     <script type="text/javascript">
 
-        //==============::GA::====================================
-        (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
-            (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
-                m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
-        })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+    //==============::GA::====================================
+    var _gaq = _gaq || [];
+    _gaq.push(['_setAccount', 'UA-393774-1']);
+    _gaq.push(['_trackPageview']);
 
-        ga('create', 'UA-44531934-1', 'devstate.net');
-
-        if(location.hostname && location.hostname.toLowerCase().indexOf("devstate")>-1){
-            ga('send', 'pageview');
-        }
-        //==============::GA::====================================
+    (function() {
+        var ga = document.createElement('script');
+        ga.type = 'text/javascript';
+        ga.async = true;
+        ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+        var s = document.getElementsByTagName('script')[0];
+        s.parentNode.insertBefore(ga, s);
+    })();
+    //==============::/GA::====================================
 
         var canvas;
         var context;
@@ -46,7 +48,8 @@
 
             this.context.fillStyle = "#FF0000";
 
-            wanderer = new Sakri.CircularWander(bounds, 2, createStartingPoint(), context);
+            wanderer = new Sakri.CircularWander(bounds, 4, createStartingPoint(), context);
+            wanderer.maxCircleRotation = Math.PI;
 
             wanderer.breakOutFunction = function(){
                 clearInterval(intervalId);
@@ -84,18 +87,21 @@
             context.strokeRect(bounds.x, bounds.y, bounds.width, bounds.height);
 
             context.beginPath();
-            context.fillStyle = "#fe6a00";
-            context.arc(wanderer.position.x, wanderer.position.y, 5, 0, Sakri.MathUtil.PI2);
-            context.closePath();
-            context.fill();
-
             context.fillStyle = "#f23a18";
-            context.arc(wanderer.position.x, wanderer.position.y, 4, 0, Sakri.MathUtil.PI2);
+            context.arc(wanderer.position.x, wanderer.position.y, 8, 0, Sakri.MathUtil.PI2);
             context.closePath();
             context.fill();
 
+            context.beginPath();
+            context.fillStyle = "#fe6a00";
+            context.arc(wanderer.position.x, wanderer.position.y, 7, 0, Sakri.MathUtil.PI2);
+            context.closePath();
+            context.fill();
+
+            context.beginPath();
             context.fillStyle = "#fdb01f";
-            context.arc(wanderer.position.x, wanderer.position.y, 3, 0, Sakri.MathUtil.PI2);
+            //context.fillStyle = "#FFFFFF";
+            context.arc(wanderer.position.x, wanderer.position.y, 5, 0, Sakri.MathUtil.PI2);
             context.closePath();
             context.fill();
 

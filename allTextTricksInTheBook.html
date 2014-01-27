@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>All Text Tricks In The Book</title>
+    <script type="text/javascript" src="commonJS/MathUtil.js" ></script>
+    <script type="text/javascript" src="commonJS/Geom.js" ></script>
+    <script type="text/javascript" src="commonJS/RectangleUtil.js" ></script>
+    <script type="text/javascript" src="commonJS/CircularWander.js" ></script>
+    <script type="text/javascript" src="commonJS/ImageStore.js" ></script>
+
+    <script type="text/javascript">
+
+    //==============::GA::====================================
+    var _gaq = _gaq || [];
+    _gaq.push(['_setAccount', 'UA-393774-1']);
+    _gaq.push(['_trackPageview']);
+
+    (function() {
+        var ga = document.createElement('script');
+        ga.type = 'text/javascript';
+        ga.async = true;
+        ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+        var s = document.getElementsByTagName('script')[0];
+        s.parentNode.insertBefore(ga, s);
+    })();
+
+    //==============::GA::====================================
+
+    var canvas;
+    var canvasContainer;
+    var context;
+    var wanderers=[];
+    var intervalId = -1;
+    var bounds;
+
+    var imageStore = new Sakri.ImageStore();
+    var sourceImage;
+
+    var imageCanvas;
+    var imageContext;
+
+    var wanderText = "TEXT WITH CANVAS. ";
+    var numWanderers = 50;
+    var intervalValue = 20;
+    var fontSize = 30;
+    var fontHeight = 24;
+
+    var textWandererProps = [
+        {fontSize:15, fontHeight:12, speed: 13},
+        {fontSize:15, fontHeight:12, speed: 13},
+        {fontSize:15, fontHeight:12, speed: 13},
+        {fontSize:25, fontHeight:21, speed: 20},
+        {fontSize:25, fontHeight:21, speed: 20},
+        {fontSize:35, fontHeight:26, speed: 27},
+        {fontSize:45, fontHeight:32, speed: 34},
+        {fontSize:55, fontHeight:42, speed: 44},
+        {fontSize:65, fontHeight:52, speed: 54}
+    ];
+
+    //var wandererColors = ["#69d2e7", "#a7dbd8", "#e0e4cc", "#FDFDFD"]; //basic pastels
+    //var wandererColors = ["#0a0a30", "#0a0a30", "#0bffff", "#81bcfe", "#d2b7ec" ]; //clown fish
+    var wandererColors = [ "#070720", "#0b0b2e", "#0f0f38", "#262994"];//"#03030f",
+
+    function init(){
+        imageStore.loadImages(["assets/allTextTricksInTheBook.jpg"], imageStoreComplete);
+    }
+
+    function setCharacterMetrics(){
+        var metrics, i, j, char;
+        for(i=0;i<textWandererProps.length;i++){
+            textWandererProps[i].charMetrics=[];
+            context.font = "bold "+textWandererProps[i].fontSize+"px sans-serif";
+            for(j=0;j<wanderText.length;j++){
+                metrics = context.measureText(wanderText.charAt(j));
+                textWandererProps[i].charMetrics[j] = metrics.width;
+            }
+        }
+        //console.log("setCharacterMetrics() : ",charMetrics.length);
+    }
+
+    function imageStoreComplete(){
+        sourceImage = imageStore.images[0];
+        imageCanvas = document.createElement("canvas");
+        imageCanvas.width = sourceImage.width;
+        imageCanvas.height = sourceImage.height;
+        imageContext = imageCanvas.getContext("2d");
+        imageContext.drawImage(sourceImage, 0, 0, sourceImage.width, sourceImage.height);
+
+        canvas = document.createElement('canvas');
+        canvas.width = sourceImage.width;
+        canvas.height = sourceImage.height;
+        context = canvas.getContext("2d");
+        canvasContainer = document.getElementById("canvasContainer");
+        canvasContainer.appendChild(canvas);
+
+        bounds = new Sakri.Geom.Rectangle(0,0, canvas.width, canvas.height);
+        setCharacterMetrics();
+
+        var props, i;
+        for(i=0; i<numWanderers; i++){
+            props=textWandererProps[i%textWandererProps.length];
+            wanderers[i] = new Sakri.CircularWander(bounds, 4, createStartingPoint(), context);//assume no character will be less wide than "speed"
+            wanderers[i].maxCircleRotation = Math.PI;
+            wanderers[i].minimumRadius = props.fontSize*1.5;
+            wanderers[i].fontSize = props.fontSize;
+            wanderers[i].fontHeight = props.fontHeight;
+            wanderers[i].color = wandererColors[i%wandererColors.length];
+            wanderers[i].charMetrics = props.charMetrics;
+            wanderers[i].distanceTravelled = 0;
+            wanderers[i].currentCharacterIndex = 0;
+            wanderers[i].nextTravelTarget = 0;
+            wanderers[i].breakOutFunction = wandererBreakoutFunction;
+            //wanderer[i].
+        }
+
+        intervalId = setInterval(updateParticles, intervalValue);
+
+        //black "#020315"
+        //blue "#2225a8"
+
+        var bgGradient = context.createRadialGradient(bounds.getCenterX(),bounds.getCenterY(),bounds.height/8,bounds.getCenterX(),bounds.getCenterY(),bounds.height/1.5);
+        bgGradient.addColorStop(0,"#2225a8");
+        bgGradient.addColorStop(1,"#020315");
+
+        context.fillStyle = bgGradient;//"#000000";
+        context.fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
+
+        context.shadowColor = '#000000';
+        context.shadowBlur = 2;
+        context.shadowOffsetX = 1;
+        context.shadowOffsetY = 1;
+
+        context.textBaseline = "top";
+        context.textAlign = "left";
+
+    }
+
+    function createStartingPoint(){
+        return new Sakri.Geom.Point(bounds.getCenterX() - 50 + Math.random()*100, bounds.getCenterY() - 50 + Math.random()*100);
+    }
+
+    function wandererBreakoutFunction(wanderer){
+        //console.log("BREAK OUT!");
+        wanderers.splice(wanderers.indexOf(wanderer), 1);
+        if(!wanderers.length){
+            console.log("Wanderers finished");
+            clearInterval(intervalId);
+        }
+    }
+
+
+    function updateParticles(){
+        for(var i=0; i<wanderers.length; i++){
+            updateWanderer(wanderers[i]);
+        }
+    }
+
+    function updateWanderer(wanderer){
+        context.setTransform(1,0,0,1,0,0);//identity
+        wanderer.update();
+
+        wanderer.distanceTravelled += Math.abs(wanderer.speed);
+
+        if(wanderer.distanceTravelled <= wanderer.nextTravelTarget){
+            return;
+        }
+
+        var character = wanderText.charAt(wanderer.currentCharacterIndex);
+        wanderer.nextTravelTarget = wanderer.charMetrics[wanderer.currentCharacterIndex];
+
+        wanderer.currentCharacterIndex++;
+        wanderer.currentCharacterIndex %= wanderText.length;
+        wanderer.distanceTravelled = 0;
+
+        //context.clearRect(0,0,canvas.width, canvas.height);
+        var pixel = imageContext.getImageData(wanderer.position.x, wanderer.position.y, 1, 1).data;//could offset this a bit towards center of character?
+
+        //context.beginPath();
+        var style  = Sakri.MathUtil.getHexStringFromRGB(pixel[0], pixel[1], pixel[2]);
+        //style = style=="#000000" ? "#FFFFFF" : style;
+        style = style.toUpperCase()=="#000000" || (pixel[0] + pixel[1] + pixel[2] < 100) ? wanderer.color : style;
+
+        //console.log("style : ", style);
+        context.fillStyle = style;
+        //context.fillStyle = "#FF00CC";
+        //context.arc(wanderer.position.x, wanderer.position.y, 10, 0, Sakri.MathUtil.PI2);
+
+       // context.closePath();
+        //context.fill();
+
+        var radius = wanderer.currentCircle.radius + (wanderer.speed>0 ? wanderer.fontHeight : -wanderer.fontHeight)/2;
+        var fontX = wanderer.currentCircle.x + Math.cos(wanderer.currentRadian)*radius;
+        var fontY = wanderer.currentCircle.y + Math.sin(wanderer.currentRadian)*radius;
+
+        context.translate(fontX,fontY);
+        context.rotate(wanderer.currentRadian+(wanderer.speed>0 ? -Sakri.MathUtil.PI_AND_HALF : Sakri.MathUtil.PI_AND_HALF));
+        context.font = "bold "+wanderer.fontSize+"px sans-serif";
+
+        context.fillText (character,0,0)
+
+    }
+
+
+    var readyStateCheckInterval = setInterval( function() {
+        if (document.readyState === "complete") {
+            //mailNode = document.getElementById( "subscriber" );
+            clearInterval(readyStateCheckInterval);
+            init();
+        }
+    }, 10);
+
+
+    </script>
+
+</head>
+<body style="background-color: #020315">
+    <div id="canvasContainer"></div>
+    <p style="font-family: Arial, Helvetica, sans-serif; color: #FFFFFF">Press Refresh to start again. Takes between 2-5 minutes to complete.</p>
+</body>
+
+
+
+
+</html>

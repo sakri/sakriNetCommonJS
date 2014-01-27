@@ -22,21 +22,21 @@
         this.currentCircle = new Sakri.Geom.Circle(startingPoint.x, startingPoint.y, this.minimumRadius);//TODO: random starting point ensuring circle is within bounds
         this.context = context;
         this.currentRadian = Math.random() * Sakri.MathUtil.PI2; // TODO: rename, not immediately clear what the purpose of this property is?
-        this.position = new Sakri.Geom.Point();
+        this.position = new Sakri.Geom.Point(startingPoint.x, startingPoint.y);
         this.radiusLine = new Sakri.Geom.Line();//used for creating circles
         this.circleFinder = new Sakri.LargestCircleInBoundsForRadiusFinder();
         this.setNextChangeTarget();
     };
-    
+
     Sakri.CircularWander.prototype.update = function(){
         this.currentRadian += this.updateAngleIncrement;
         this.currentRadian = Sakri.MathUtil.constrainRadianTo2PI(this.currentRadian);
         this.position.x = this.currentCircle.x + Math.cos(this.currentRadian) * this.currentCircle.radius;
         this.position.y = this.currentCircle.y + Math.sin(this.currentRadian) * this.currentCircle.radius;
         if(!this.bounds.containsPoint(this.position.x, this.position.y)){
-            console.log("OUT OF BOUNDS!");
+            //console.log("OUT OF BOUNDS!");
             if(this.breakOutFunction){
-                this.breakOutFunction();
+                this.breakOutFunction(this);
             }
             return;
         }
@@ -63,24 +63,32 @@
 
         var nextCircle = this.circleFinder.findLargestFittingCircle(this.bounds, this.radiusLine, this.currentRadian, this.context);
 
+        /*
         var context = this.context;
 
         context.beginPath();
         context.strokeStyle = "#150d49";
-        context.lineWidth = 5;
+        context.lineWidth = 8;
         context.arc(nextCircle.x, nextCircle.y, nextCircle.radius, 0, Sakri.MathUtil.PI2);
         context.closePath();
         context.stroke();
 
         context.beginPath();
         context.strokeStyle = "#02feff";
-        context.lineWidth = 2;
+        context.lineWidth = 5;
         context.arc(nextCircle.x, nextCircle.y, nextCircle.radius, 0, Sakri.MathUtil.PI2);
         context.closePath();
         context.stroke();
 
+        context.beginPath();
+        context.strokeStyle = "#FFFFFF";
+        context.lineWidth = 2;
+        context.arc(nextCircle.x, nextCircle.y, nextCircle.radius+1, 0, Sakri.MathUtil.PI2);
+        context.closePath();
+        context.stroke();*/
+
          if(!nextCircle.containsPoint(this.currentCircle) && !this.currentCircle.containsPoint(nextCircle)){
-            console.log("switch speed : ", this.speed);
+            //console.log("switch speed : ", this.speed);
             this.speed *= -1;
             this.currentRadian -= Math.PI;
             this.currentRadian = Sakri.MathUtil.constrainRadianTo2PI(this.currentRadian);
@@ -92,12 +100,25 @@
         nextCircle.x = this.position.x + Math.cos(angle)*nextCircle.radius;
         nextCircle.y = this.position.y + Math.sin(angle)*nextCircle.radius;
 
+        /*
         context.beginPath();
-        context.lineWidth = 1;
+        context.lineWidth = 2;
         context.strokeStyle = "#92b1ff";
         context.arc(nextCircle.x, nextCircle.y, nextCircle.radius, 0, Sakri.MathUtil.PI2);
         context.closePath();
         context.stroke();
+        */
+
+        /*
+        var context = this.context;
+
+        context.beginPath();
+        context.strokeStyle = "#CCCCCC";
+        context.lineWidth = 1;
+        context.arc(nextCircle.x, nextCircle.y, nextCircle.radius, 0, Sakri.MathUtil.PI2);
+        context.closePath();
+        context.stroke();
+        */
 
         this.currentCircle.update(nextCircle.x, nextCircle.y, nextCircle.radius);
         this.setNextChangeTarget();
@@ -107,9 +128,9 @@
     Sakri.CircularWander.prototype.setNextChangeTarget = function(){
         var circumference = Math.PI * (this.currentCircle.radius * 2);
         var moveDistance = Sakri.MathUtil.getRandomNumberInRange(this.minCircleRotation, this.maxCircleRotation);
-        var totalDist = (moveDistance / Sakri.MathUtil.PI2) * circumference;//TODO : This will cause problems if this.maxCircleRotation is not 360
+        var totalDist = (moveDistance / Sakri.MathUtil.PI2) * circumference;
         this.updatesBeforeNextCircle = Math.ceil(totalDist / Math.abs(this.speed));//number of moves before switching circles, TODO rename
-        this.updateAngleIncrement = moveDistance / this.updatesBeforeNextCircle * this.speed;
+        this.updateAngleIncrement = (moveDistance / this.updatesBeforeNextCircle) * (this.speed > 0 ? 1 : -1);
         this.updates = 0;
         //console.log("CircularWander.setNextChangeTarget" , circumference, moveDistance, totalDist, this.updatesBeforeNextCircle, this.updateAngleIncrement);
     };
@@ -153,15 +174,7 @@
             this.nextCircleOption2.radius = 0;//0 is used to check if valid option
         }
 
-        if(context && this.nextCircleOption1 && this.nextCircleOption2){
-            /*
-            context.beginPath();
-            context.strokeStyle = "#FF0000";
-            context.lineWidth = 1;
-            context.moveTo(radiusLine.pointA.x, radiusLine.pointA.y);
-            context.lineTo(radiusLine.pointB.x, radiusLine.pointB.y);
-            context.closePath();
-            context.stroke();*/
+        /*if(context && this.nextCircleOption1 && this.nextCircleOption2){
 
             context.beginPath();
             context.strokeStyle = "#dd77cc";
@@ -174,7 +187,7 @@
             context.arc(this.nextCircleOption2.x, this.nextCircleOption2.y, this.nextCircleOption2.radius, 0, Sakri.MathUtil.PI2);
             context.closePath();
             context.stroke();
-        }
+        }*/
         if(!this.nextCircleOption1.radius && !this.nextCircleOption2.radius){
             throw new Error("NO CIRCLE CANDIDATES AVAILABLE?!");//obviously this should never happen. If it does then I have some bug huntin' to do
         }
