@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>TEXT EDGE DEMO</title>
+
+    <script type="text/javascript" src="commonJS/MathUtil.js" ></script>
+    <script type="text/javascript" src="commonJS/Geom.js" ></script>
+    <script type="text/javascript" src="commonJS/RectangleUtil.js" ></script>
+    <script type="text/javascript" src="commonJS/CanvasTextUtil.js" ></script>
+    <script type="text/javascript" src="commonJS/BitmapUtil.js" ></script>
+    <script type="text/javascript" src="commonJS/MarchingSquares.js" ></script>
+
+    <script type="text/javascript">
+
+    var canvas;
+    var context;
+    var canvasContainer;
+    var htmlBounds;
+    var bounds;
+    var minimumStageWidth = 250;
+    var minimumStageHeight = 250;
+    var intervalId = -1;
+    var timeoutId = -1;
+    var resizeTimeoutId = -1;
+    var flare;
+    var words = ["CANVAS", "Codepen", "SAKRI", "DevState" ];
+
+    var fontProperties = new Sakri.CanvasTextProperties(Sakri.CanvasTextProperties.BOLD, null, 160);
+    var fillStyle = "#0b0b2e";
+
+    function init(){
+
+        canvas = document.createElement('canvas');
+        canvas.style.position = "absolute";
+        context = canvas.getContext("2d");
+        canvasContainer = document.getElementById("canvasContainer");
+        canvasContainer.appendChild(canvas);
+
+        flare = createFlare(50);
+
+        window.onresize = resizeHandler;
+        commitResize();
+
+    }
+
+    function getWidth( element ){return Math.max(element.scrollWidth,element.offsetWidth,element.clientWidth );}
+    function getHeight( element ){return Math.max(element.scrollHeight,element.offsetHeight,element.clientHeight );}
+
+    //avoid running resize scripts repeatedly if a browser window is being resized by dragging
+    function resizeHandler(){
+        renderBackground();
+        clearInterval (intervalId);
+        clearTimeout (resizeTimeoutId);
+        clearTimeout (timeoutId);
+        resizeTimeoutId = setTimeout(function(){commitResize();}, 300 );
+    }
+
+    function commitResize(){
+        htmlBounds = new Sakri.Geom.Rectangle(0,0, getWidth(this.canvasContainer) , getHeight(canvasContainer));
+        if(htmlBounds.width>=800){
+            canvas.width = 800;
+            canvas.style.left = htmlBounds.getCenterX() - 400+"px";
+        }else{
+            canvas.width = htmlBounds.width;
+            canvas.style.left ="0px";
+        }
+        if(htmlBounds.height>600){
+           canvas.height = 600;
+           canvas.style.top = htmlBounds.getCenterY() - 300+"px";
+        }else{
+            canvas.height = htmlBounds.height;
+            canvas.style.top ="0px";
+        }
+        bounds = new Sakri.Geom.Rectangle(0,0, canvas.width, canvas.height);
+        console.log("commitResize() : "+bounds.toString());
+        renderBackground();
+        context.font = fontProperties.getFontString();
+        context.textBaseline = "top";
+
+        if(bounds.width<minimumStageWidth || bounds.height<minimumStageHeight){
+            stageTooSmallHandler();
+            return;
+        }
+
+        showNextWord();
+    }
+
+    function stageTooSmallHandler(){
+        var warning = "Sorry, bigger screen required :(";
+        var props = new Sakri.CanvasTextProperties(null,null,24);
+        context.font = props.getFontString();
+        context.fillText(warning, bounds.getCenterX() - context.measureText(warning).width/2, bounds.getCenterY()-12);
+    }
+
+
+    var wordIndex = 0;
+    var choppedTextImages;
+    var wordXOffset;
+    var wordYOffset;
+    var outlines;
+    var textGradient;
+
+    function showNextWord(){
+        renderBackground();
+        var word = words[wordIndex];
+
+        var testCanvas = document.createElement('canvas');
+        var testContext = testCanvas.getContext("2d");
+        testContext.fillStyle = "#000000";
+
+        outlines = [];
+        wordXOffset = bounds.getCenterX() - context.measureText(word).width/2;
+        wordYOffset = bounds.getCenterY() - fontProperties.fontSize/2;//more or less
+        var xOffset = wordXOffset+0;
+        var character;
+
+        var i,j;
+
+        for(var i=0; i<word.length; i++){
+            character = word.charAt(i);
+
+            testContext.font = fontProperties.getFontString();
+            testCanvas.width = testContext.measureText(character).width;
+            testCanvas.height = fontProperties.fontSize*1.5;//times 1.5 to be safe
+
+            testContext.font = fontProperties.getFontString();
+            testContext.textBaseline = "top";
+            testContext.fillText(character,0,0);
+
+            outlines[i] = Sakri.MarchingSquares.getBlobOutlinePoints(testCanvas);
+
+            for(var j=0; j<outlines[i].length; j++){
+                outlines[i][j].x += xOffset;
+                outlines[i][j].y += wordYOffset;
+                //context.fillRect(outlines[i][j].x, outlines[i][j].y, 1, 1);
+            }
+
+            xOffset += testCanvas.width;
+        }
+        renderCurrentWord();
+        textGradient = context.createLinearGradient(wordXOffset, wordYOffset, wordXOffset, wordYOffset+fontProperties.fontSize*1.5);
+        textGradient.addColorStop(0,"#dc400f");
+        textGradient.addColorStop(1,"#ff9c2c");
+        timeoutId = setTimeout(startFlare, 500);
+    }
+
+    function renderBackground(){
+        context.fillStyle = "0c0d43";
+        context.fillRect(0,0,bounds.width, bounds.height);
+    }
+
+    function renderCurrentWord(){
+
+        context.fillStyle = textGradient;
+        context.fillText(words[wordIndex], wordXOffset, wordYOffset);
+        context.strokeStyle = "#FFFFFF";
+        context.lineWidth = 2;
+        context.strokeText(words[wordIndex], wordXOffset, wordYOffset);
+    }
+
+    var minFlareLength = 130;
+    var maxFlareLength = 200;
+    var flareDuration;
+    var flareMoveIndex;
+    var flarePointIndex;
+    var flareCharacterIndex;
+
+    function startFlare(){
+        var word = words[wordIndex];
+        flareCharacterIndex = Math.floor(Math.random()*word.length);//which character has flare
+        flareDuration = Sakri.MathUtil.getRandomNumberInRange(minFlareLength, maxFlareLength);
+        flarePointIndex = Math.floor(Math.random() * outlines[flareCharacterIndex].length);
+        flareMoveIndex = 0;
+        intervalId = setInterval(moveFlare, 30);
+    }
+
+    function moveFlare(){
+        if(flareMoveIndex >= flareDuration){
+            endFlare();
+            return;
+        }
+        renderBackground();
+
+        renderCurrentWord();
+
+        context.drawImage(flare, outlines[flareCharacterIndex][flarePointIndex].x-flare.width/2, outlines[flareCharacterIndex][flarePointIndex].y-flare.height/2);
+
+        flarePointIndex++;
+        flarePointIndex %= outlines[flareCharacterIndex].length;
+        flareMoveIndex++;
+    }
+
+    function endFlare(){
+        clearInterval(intervalId);
+        renderBackground();
+        renderCurrentWord();
+        wordIndex++;
+        wordIndex %= words.length;
+        setTimeout(showNextWord(), 1000);
+    }
+
+
+
+    function createFlare(size){
+        var flareCanvas = document.createElement('canvas');
+        flareCanvas.width = size;
+        flareCanvas.height = size;
+        var flareContext = flareCanvas.getContext("2d");
+
+        var gradient = context.createRadialGradient(size/2, size/2, size/10, size/2, size/2, size/3);
+        gradient.addColorStop(0,"rgba(255,255,255,.8)");
+        gradient.addColorStop(1,"rgba(255,255,255,.0)");
+
+        flareContext.fillStyle = gradient;
+        //flareContext.fillStyle = "#FF0000";
+        flareContext.arc(size/2, size/2, size/3, 0, Sakri.MathUtil.PI2);
+        flareContext.fill();
+
+        var flareImg = document.createElement("img");
+        flareImg.src = flareCanvas.toDataURL();
+        return flareImg;
+    }
+
+
+    var readyStateCheckInterval = setInterval( function() {
+        if (document.readyState === "complete") {
+            clearInterval(readyStateCheckInterval);
+            init();
+        }
+    }, 10);
+
+
+
+    </script>
+
+    <style type="text/css">
+
+        html, body{
+            margin : 0px;
+            width : 100%;
+            height : 100%;
+            overflow: hidden;
+        }
+
+        #canvasContainer{
+            margin : 0px;
+            width : 100%;
+            height : 100%;
+        }
+
+    </style>
+
+</head>
+<body>
+    <div id="canvasContainer"></div>
+</body>
+</html>

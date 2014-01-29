@@ -25,6 +25,11 @@
         this.y = isNaN(y) ? this.y : y;
     };
 
+    Sakri.Geom.Point.prototype.add = function(x, y){
+        this.x += isNaN(x) ? 0 : x;
+        this.y += isNaN(y) ? 0 : y;
+    };
+
     Sakri.Geom.Point.prototype.equals = function(point){
         return this.x==point.x && this.y==point.y;
     };
@@ -306,6 +311,10 @@
 		return this.y + this.height;
 	};
 
+    Sakri.Geom.Rectangle.prototype.getCenter = function(){
+        return new Sakri.Geom.Point(this.getCenterX(), this.getCenterY());
+    };
+
     Sakri.Geom.Rectangle.prototype.getCenterX = function(){
         return this.x + this.width/2;
     };
@@ -319,10 +328,6 @@
     };
     Sakri.Geom.Rectangle.prototype.containsRect = function(rect){
         return this.containsPoint(rect.x, rect.y) && this.containsPoint(rect.getRight(), rect.getBottom());
-    };
-    //questionable... center should not be relative to canvas itself...
-    Sakri.Geom.Rectangle.prototype.getCenter = function(){
-        return new Sakri.Geom.Point(this.x+this.width/2,this.y+this.height/2);
     };
 
 	Sakri.Geom.Rectangle.prototype.isSquare = function(){

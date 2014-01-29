@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Marching Squares Test</title>
+
+    <script type="text/javascript" src="commonJS/MathUtil.js" ></script>
+    <script type="text/javascript" src="commonJS/Geom.js" ></script>
+    <script type="text/javascript" src="commonJS/RectangleUtil.js" ></script>
+    <script type="text/javascript" src="commonJS/CanvasTextUtil.js" ></script>
+    <script type="text/javascript" src="commonJS/BitmapUtil.js" ></script>
+    <script type="text/javascript" src="commonJS/MarchingSquares.js" ></script>
+
+    <script type="text/javascript">
+
+    var canvas;
+    var context;
+    var canvasContainer;
+    var htmlBounds;
+    var bounds;
+    var minimumStageWidth = 250;
+    var minimumStageHeight = 250;
+    var intervalId = -1;
+    var resizeTimeoutId = -1;
+
+    var fontProperties = new Sakri.CanvasTextProperties(Sakri.CanvasTextProperties.BOLD, null, 160);
+    var fillStyle = "#0b0b2e";
+
+    function init(){
+
+        canvas = document.createElement('canvas');
+        canvas.style.position = "absolute";
+        context = canvas.getContext("2d");
+        canvasContainer = document.getElementById("canvasContainer");
+        canvasContainer.appendChild(canvas);
+
+        window.onresize = resizeHandler;
+        commitResize();
+
+    }
+
+    function getWidth( element ){return Math.max(element.scrollWidth,element.offsetWidth,element.clientWidth );}
+    function getHeight( element ){return Math.max(element.scrollHeight,element.offsetHeight,element.clientHeight );}
+
+    //avoid running resize scripts repeatedly if a browser window is being resized by dragging
+    function resizeHandler(){
+        context.clearRect(0,0,bounds.width, bounds.height);
+        clearTimeout (intervalId);
+        clearTimeout (resizeTimeoutId);
+        resizeTimeoutId = setTimeout(function(){commitResize();}, 300 );
+    }
+
+    function commitResize(){
+        htmlBounds = new Sakri.Geom.Rectangle(0,0, getWidth(this.canvasContainer) , getHeight(canvasContainer));
+        if(htmlBounds.width>=800){
+            canvas.width = 800;
+            canvas.style.left = htmlBounds.getCenterX() - 400+"px";
+        }else{
+            canvas.width = htmlBounds.width;
+            canvas.style.left ="0px";
+        }
+        if(htmlBounds.height>600){
+           canvas.height = 600;
+           canvas.style.top = htmlBounds.getCenterY() - 300+"px";
+        }else{
+            canvas.height = htmlBounds.height;
+            canvas.style.top ="0px";
+        }
+        bounds = new Sakri.Geom.Rectangle(0,0, canvas.width, canvas.height);
+        console.log("commitResize() : "+bounds.toString());
+        context.clearRect(0,0,bounds.width, bounds.height);
+
+        if(bounds.width<minimumStageWidth || bounds.height<minimumStageHeight){
+            stageTooSmallHandler();
+            return;
+        }
+
+        start();
+    }
+
+    function stageTooSmallHandler(){
+        var warning = "Sorry, bigger screen required :(";
+        var props = new Sakri.CanvasTextProperties(null,null,24);
+        context.font = props.getFontString();
+        context.fillText(warning, bounds.getCenterX() - context.measureText(warning).width/2, bounds.getCenterY()-12);
+    }
+
+    function start(){
+        context.clearRect(0, 0, canvas.width, canvas.height);
+        testMarchingSquares();
+        //demoNextCharacter();
+    }
+
+
+    function testMarchingSquares(){
+
+        var testCanvas = document.createElement('canvas');
+        var testContext = testCanvas.getContext("2d");
+
+        //hardcoded, the minimum size for the html is 250x250
+        testCanvas.width = 250;
+        testCanvas.height = 250;
+
+        testContext.font = fontProperties.getFontString();
+        testContext.textBaseline = "top";
+        testContext.fillStyle = "#CCCCCC";
+
+        var characters = "ABCDEFGHIJKLMNOPQRSTUVXYZ1234567890";
+        var character;
+        var numCharacters = 8;
+        var radianIncrement = Sakri.MathUtil.PI2 / numCharacters;
+
+        for(var i=0; i<numCharacters; i++){
+            testContext.setTransform(1,0,0,1,0,0);
+            testContext.translate(125, 125);
+            testContext.rotate(i * radianIncrement);
+            character = characters.charAt(Math.floor(Math.random()*characters.length));
+            testContext.fillText(character,0,0);
+        }
+
+        /*
+        character = "Y";
+        testContext.fillText(character,0,0);
+        */
+        context.drawImage(testCanvas, bounds.getCenterX() - 125, bounds.getCenterY() - 125);
+
+        var outlinePoints = Sakri.MarchingSquares.getBlobOutlinePoints(testCanvas, true);
+        context.fillStyle = "#FF0000";
+
+        for(var i=0; i<outlinePoints.length; i++){
+            context.fillRect(outlinePoints[i].x, outlinePoints[i].y, 1, 1);
+        }
+    }
+
+    function demoNextCharacter(){
+
+        var smallFont = new Sakri.CanvasTextProperties(Sakri.CanvasTextProperties.BOLD, null, 24);
+
+        //TODO create a demo where a smallFont is scaled 4x, then the marchin squares is ran
+        //with a "live" visualization of the algorithm
+
+    }
+
+
+
+    var readyStateCheckInterval = setInterval( function() {
+        if (document.readyState === "complete") {
+            clearInterval(readyStateCheckInterval);
+            init();
+        }
+    }, 10);
+
+
+
+    </script>
+
+    <style type="text/css">
+
+        html, body{
+            margin : 0px;
+            width : 100%;
+            height : 100%;
+            overflow: hidden;
+        }
+
+        #canvasContainer{
+            margin : 0px;
+            width : 100%;
+            height : 100%;
+        }
+
+    </style>
+
+</head>
+<body>
+    <div id="canvasContainer"></div>
+</body>
+</html>
