@@ -48,8 +48,24 @@
     };
 
 
+    //capture rect is the content on canvas to be reflected, border defines the space between the original content and the reflection
+    //captureRect must contain the properties x, y, width, height
+    //For more interesting results add a gradient on top of the reflection
+    Sakri.BitmapUtil.renderReflection = function(canvas, captureRect, border){
+        if(!border){
+            border = 5;
+        }
+        var context = canvas.getContext("2d");
+        context.save();
+        //move and flip vertically
+        context.translate(captureRect.x, captureRect.y + captureRect.height*2 + border);
+        context.scale(1, -1);
 
+        context.drawImage(	canvas, captureRect.x, captureRect.y, captureRect.width, captureRect.height,
+            0, 0, captureRect.width, captureRect.height);//img,sx,sy,swidth,sheight,x,y,width,height
 
+        context.restore();
 
+    };
 
 }(window));

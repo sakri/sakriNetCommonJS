@@ -22,25 +22,33 @@
     var intervalId = -1;
     var timeoutId = -1;
     var resizeTimeoutId = -1;
-    var flare;
-    var words = ["CANVAS", "Codepen", "SAKRI", "DevState" ];
+    var flare;//img containing flare graphic
+    var words = ["CANVAS", "CodePen", "SAKRI", "DevState" ];
+
+    var wordAlpha = 0;
+    var bgColor = "#0c0d43";
+
+    var wordIndex = 0;
+    var choppedTextImages;
+    var wordXOffset;
+    var wordYOffset;
+    var outlines;//stores outline points of characters from marching squares
+    var textGradient;
+    var reflectionGradient;
+    var currentWord;
+    var textBoundsForReflection = new Sakri.Geom.Rectangle();
 
     var fontProperties = new Sakri.CanvasTextProperties(Sakri.CanvasTextProperties.BOLD, null, 160);
-    var fillStyle = "#0b0b2e";
 
     function init(){
-
         canvas = document.createElement('canvas');
         canvas.style.position = "absolute";
         context = canvas.getContext("2d");
         canvasContainer = document.getElementById("canvasContainer");
         canvasContainer.appendChild(canvas);
-
         flare = createFlare(50);
-
         window.onresize = resizeHandler;
         commitResize();
-
     }
 
     function getWidth( element ){return Math.max(element.scrollWidth,element.offsetWidth,element.clientWidth );}
@@ -92,32 +100,25 @@
         context.fillText(warning, bounds.getCenterX() - context.measureText(warning).width/2, bounds.getCenterY()-12);
     }
 
-
-    var wordIndex = 0;
-    var choppedTextImages;
-    var wordXOffset;
-    var wordYOffset;
-    var outlines;
-    var textGradient;
-
     function showNextWord(){
         renderBackground();
-        var word = words[wordIndex];
+        currentWord = words[wordIndex];
 
         var testCanvas = document.createElement('canvas');
         var testContext = testCanvas.getContext("2d");
         testContext.fillStyle = "#000000";
 
         outlines = [];
-        wordXOffset = bounds.getCenterX() - context.measureText(word).width/2;
+        var textWidth = context.measureText(currentWord).width;
+        wordXOffset = bounds.getCenterX() - textWidth/2;
         wordYOffset = bounds.getCenterY() - fontProperties.fontSize/2;//more or less
+        textBoundsForReflection.update(wordXOffset-shadowOffset, wordYOffset-shadowOffset, textWidth+shadowOffset*2, fontProperties.fontSize+shadowOffset);
         var xOffset = wordXOffset+0;
         var character;
 
         var i,j;
-
-        for(var i=0; i<word.length; i++){
-            character = word.charAt(i);
+        for(var i=0; i<currentWord.length; i++){
+            character = currentWord.charAt(i);
 
             testContext.font = fontProperties.getFontString();
             testCanvas.width = testContext.measureText(character).width;
@@ -132,58 +133,150 @@
             for(var j=0; j<outlines[i].length; j++){
                 outlines[i][j].x += xOffset;
                 outlines[i][j].y += wordYOffset;
-                //context.fillRect(outlines[i][j].x, outlines[i][j].y, 1, 1);
             }
 
             xOffset += testCanvas.width;
         }
-        renderCurrentWord();
-        textGradient = context.createLinearGradient(wordXOffset, wordYOffset, wordXOffset, wordYOffset+fontProperties.fontSize*1.5);
+        textGradient = context.createLinearGradient(wordXOffset, wordYOffset*1.1, wordXOffset, wordYOffset+fontProperties.fontSize*1.1);
         textGradient.addColorStop(0,"#dc400f");
         textGradient.addColorStop(1,"#ff9c2c");
-        timeoutId = setTimeout(startFlare, 500);
+
+        var rgb = Sakri.MathUtil.hexToRgb(bgColor);
+        var rgbString = "rgba("+rgb.r+","+rgb.g+","+rgb.b+",";
+        reflectionGradient = context.createLinearGradient(textBoundsForReflection.x, textBoundsForReflection.y + textBoundsForReflection.height, textBoundsForReflection.x, textBoundsForReflection.y + textBoundsForReflection.height*1.5);
+        reflectionGradient.addColorStop(0.1, rgbString+".6)");
+        reflectionGradient.addColorStop(0.5, rgbString+".9)");
+        reflectionGradient.addColorStop(1, rgbString+"1)");
+
+        wordAlpha = 0;
+        intervalId = setInterval(fadeCurrentWordIn, 20);
+    }
+
+    function fadeCurrentWordIn(){
+        renderBackground();
+        context.globalAlpha = wordAlpha;
+        renderCurrentWord();
+        context.globalAlpha = 1;
+        renderReflection();
+        wordAlpha += .05;
+        if(wordAlpha>1){
+            clearInterval(intervalId);
+            startFlare();
+        }
     }
 
     function renderBackground(){
-        context.fillStyle = "0c0d43";
+        context.fillStyle = bgColor;
         context.fillRect(0,0,bounds.width, bounds.height);
     }
 
-    function renderCurrentWord(){
-
-        context.fillStyle = textGradient;
-        context.fillText(words[wordIndex], wordXOffset, wordYOffset);
-        context.strokeStyle = "#FFFFFF";
-        context.lineWidth = 2;
-        context.strokeText(words[wordIndex], wordXOffset, wordYOffset);
+    function renderReflection(){
+        Sakri.BitmapUtil.renderReflection(canvas,textBoundsForReflection, 0);
+        context.fillStyle = reflectionGradient;
+        context.fillRect(textBoundsForReflection.x, textBoundsForReflection.y + textBoundsForReflection.height, textBoundsForReflection.width, textBoundsForReflection.height);
     }
 
-    var minFlareLength = 130;
-    var maxFlareLength = 200;
+    function renderCurrentWord(){
+        context.fillStyle = "#000000";
+        context.fillText(currentWord, wordXOffset, wordYOffset);
+        context.strokeStyle = "#222222";
+        context.lineWidth = 2;
+        context.strokeText(currentWord, wordXOffset, wordYOffset);
+    }
+
+    var charCenter = new Sakri.Geom.Point();
+    var shadowOffset = 25;
+
+    function renderCurrentWordWithShading(){
+        context.fillStyle = "#000000";
+        context.save();
+        context.shadowColor = "#000000";
+        context.shadowBlur = 25;
+        charCenter.y = wordYOffset+fontProperties.fontSize/2;
+        var xOffset = wordXOffset;
+        var shadowAngle;
+        for(var i=0; i<currentWord.length;i++){
+            charCenter.x = xOffset + context.measureText(currentWord.charAt(i)).width/2;
+            shadowAngle = Math.atan2(charCenter.y - flarePosition.y, charCenter.x - flarePosition.x);
+            context.shadowOffsetX = Math.cos(shadowAngle) * shadowOffset;
+            context.shadowOffsetY = Math.sin(shadowAngle) * shadowOffset;
+            context.fillText(currentWord.charAt(i), xOffset, wordYOffset);
+            xOffset += context.measureText(currentWord.charAt(i)).width;;
+        }
+        context.restore();
+        context.fillStyle = textGradient;
+        context.fillText(currentWord, wordXOffset, wordYOffset);
+
+        context.fillStyle = "#000000";
+        xOffset = wordXOffset;
+        for(var i=0; i<currentWord.length;i++){
+            context.globalAlpha = charDarkness[i];
+            context.fillText(currentWord.charAt(i), xOffset, wordYOffset);
+            xOffset += context.measureText(currentWord.charAt(i)).width;;
+        }
+        context.globalAlpha = 1;
+        context.strokeStyle = "#FFFFFF";
+        context.lineWidth = 2;
+        context.strokeText(currentWord, wordXOffset, wordYOffset);
+    }
+
+    var minFlareLength = 150;
+    var maxFlareLength = 250;
     var flareDuration;
     var flareMoveIndex;
     var flarePointIndex;
     var flareCharacterIndex;
+    var maxDarkness = .2;
+    var charDarkness;
 
     function startFlare(){
-        var word = words[wordIndex];
-        flareCharacterIndex = Math.floor(Math.random()*word.length);//which character has flare
+        flareCharacterIndex = Math.floor(Math.random() * currentWord.length);//which character has flare
         flareDuration = Sakri.MathUtil.getRandomNumberInRange(minFlareLength, maxFlareLength);
         flarePointIndex = Math.floor(Math.random() * outlines[flareCharacterIndex].length);
         flareMoveIndex = 0;
-        intervalId = setInterval(moveFlare, 30);
+        charDarkness = [];
+        var maxCharacterOffset = Math.max(flareCharacterIndex, currentWord.length-flareCharacterIndex);
+        var darknessIncrement = (1-maxDarkness) / maxCharacterOffset;
+        charDarkness[flareCharacterIndex] = 0;
+        var currentDarkness = 0;
+        for(var i= flareCharacterIndex-1; i>-1; i--){
+            charDarkness[i] = currentDarkness;
+            currentDarkness+=darknessIncrement;
+        }
+        currentDarkness = 0;
+        for(i= flareCharacterIndex+1; i<currentWord.length; i++){
+            charDarkness[i] = currentDarkness;
+            currentDarkness+=darknessIncrement;
+        }
+        intervalId = setInterval(moveFlare, 20);
     }
+
+    var flarePosition = new Sakri.Geom.Point();
+    var flareRotation = 0;
+    var flareRotationSpeed = .03;
 
     function moveFlare(){
         if(flareMoveIndex >= flareDuration){
             endFlare();
             return;
         }
+        flareRotation+=flareRotationSpeed;
+        flareRotation = Sakri.MathUtil.constrainRadianTo2PI(flareRotation);
+
         renderBackground();
 
-        renderCurrentWord();
+        renderCurrentWordWithShading(flarePosition);
 
-        context.drawImage(flare, outlines[flareCharacterIndex][flarePointIndex].x-flare.width/2, outlines[flareCharacterIndex][flarePointIndex].y-flare.height/2);
+        context.save();
+        flarePosition.x = outlines[flareCharacterIndex][flarePointIndex].x;
+        flarePosition.y = outlines[flareCharacterIndex][flarePointIndex].y;
+        context.translate(flarePosition.x, flarePosition.y);
+        context.rotate(flareRotation);
+        context.drawImage(flare, -flare.width/2, -flare.height/2);
+        //context.drawImage(flare, 0, 0);
+        context.restore();
+
+        renderReflection();
 
         flarePointIndex++;
         flarePointIndex %= outlines[flareCharacterIndex].length;
@@ -192,14 +285,24 @@
 
     function endFlare(){
         clearInterval(intervalId);
-        renderBackground();
-        renderCurrentWord();
-        wordIndex++;
-        wordIndex %= words.length;
-        setTimeout(showNextWord(), 1000);
+        wordAlpha = 1;
+        intervalId = setInterval(fadeCurrentWordOut, 20);
     }
 
-
+    function fadeCurrentWordOut(){
+        renderBackground();
+        context.globalAlpha = wordAlpha;
+        renderCurrentWord();
+        context.globalAlpha = 1;
+        renderReflection();
+        wordAlpha -= .05;
+        if(wordAlpha <= 0){
+            clearInterval(intervalId);
+            wordIndex++;
+            wordIndex %= words.length;
+            timeoutId = setTimeout(showNextWord, 500);
+        }
+    }
 
     function createFlare(size){
         var flareCanvas = document.createElement('canvas');
@@ -207,14 +310,39 @@
         flareCanvas.height = size;
         var flareContext = flareCanvas.getContext("2d");
 
-        var gradient = context.createRadialGradient(size/2, size/2, size/10, size/2, size/2, size/3);
+        var center = size/2;
+        var gradient = context.createRadialGradient(center, center, size/10, center, center, size/3);
         gradient.addColorStop(0,"rgba(255,255,255,.8)");
         gradient.addColorStop(1,"rgba(255,255,255,.0)");
 
         flareContext.fillStyle = gradient;
-        //flareContext.fillStyle = "#FF0000";
-        flareContext.arc(size/2, size/2, size/3, 0, Sakri.MathUtil.PI2);
+        flareContext.arc(center, center, size/3, 0, Sakri.MathUtil.PI2);
         flareContext.fill();
+
+        flareContext.save();
+        flareContext.shadowColor = "#FFFFFF";
+        flareContext.shadowBlur = 8;
+        flareContext.shadowOffsetX = 0;
+        flareContext.shadowOffsetY = 0;
+
+        var offset = 5;
+        flareContext.strokeStyle = "#FFFFFF";
+        flareContext.beginPath();
+        flareContext.moveTo(center, offset);
+        flareContext.lineTo(center, size-offset);
+
+        flareContext.moveTo(offset, center);
+        flareContext.lineTo(size-offset, center);
+
+        flareContext.moveTo(offset, offset);
+        flareContext.lineTo(size-offset, size-offset);
+
+        flareContext.moveTo(offset, size-offset);
+        flareContext.lineTo(size-offset, offset);
+
+        flareContext.closePath();
+        flareContext.stroke();
+        flareContext.restore();
 
         var flareImg = document.createElement("img");
         flareImg.src = flareCanvas.toDataURL();
