@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Marching Squares Test</title>
+
+    <script type="text/javascript" src="commonJS/Geom.js" ></script>
+    <script type="text/javascript" src="commonJS/CanvasTextUtil.js" ></script>
+    <script type="text/javascript" src="commonJS/BitmapUtil.js" ></script>
+    <script type="text/javascript" src="commonJS/MarchingSquares.js" ></script>
+
+    <script type="text/javascript">
+
+    //========================
+    //general properties for demo set up
+    //========================
+    var canvas;
+    var context;
+    var canvasContainer;
+    var htmlBounds;
+    var bounds;
+    var minimumStageWidth = 250;
+    var minimumStageHeight = 250;
+    var resizeTimeoutId = -1;
+
+    function init(){
+        canvas = document.createElement('canvas');
+        canvas.style.position = "absolute";
+        context = canvas.getContext("2d");
+        canvasContainer = document.getElementById("canvasContainer");
+        canvasContainer.appendChild(canvas);
+        window.onresize = resizeHandler;
+        commitResize();
+    }
+
+    function getWidth( element ){return Math.max(element.scrollWidth,element.offsetWidth,element.clientWidth );}
+    function getHeight( element ){return Math.max(element.scrollHeight,element.offsetHeight,element.clientHeight );}
+
+    //avoid running resize scripts repeatedly if a browser window is being resized by dragging
+    function resizeHandler(){
+        context.clearRect(0,0,bounds.width, bounds.height);
+        clearTimeoutsAndIntervals();
+        clearTimeout (resizeTimeoutId);
+        resizeTimeoutId = setTimeout(function(){commitResize();}, 300 );
+    }
+
+    function commitResize(){
+        htmlBounds = new Sakri.Geom.Rectangle(0,0, getWidth(this.canvasContainer) , getHeight(canvasContainer));
+        if(htmlBounds.width>=800){
+            canvas.width = 800;
+            canvas.style.left = htmlBounds.getCenterX() - 400+"px";
+        }else{
+            canvas.width = htmlBounds.width;
+            canvas.style.left ="0px";
+        }
+        if(htmlBounds.height>600){
+           canvas.height = 600;
+           canvas.style.top = htmlBounds.getCenterY() - 300+"px";
+        }else{
+            canvas.height = htmlBounds.height;
+            canvas.style.top ="0px";
+        }
+        bounds = new Sakri.Geom.Rectangle(0,0, canvas.width, canvas.height);
+        context.clearRect(0,0,bounds.width, bounds.height);
+
+        if(bounds.width>bounds.height){
+            //landscape layout
+            marchGridsBounds.x = bounds.getCenterX();
+            charactersBounds.x = marchGridsBounds.x - charactersBounds.width;
+            charactersBounds.y = marchGridsBounds.y = bounds.getCenterY() - charactersBounds.height/2;
+        }else{
+            //portrait layout
+            charactersBounds.x = marchGridsBounds.x = bounds.getCenterX() - charactersBounds.width/2;
+            marchGridsBounds.y = bounds.getCenterY()
+            charactersBounds.y = marchGridsBounds.y - charactersBounds.height/2
+        }
+
+        if(bounds.width<minimumStageWidth || bounds.height<minimumStageHeight){
+            stageTooSmallHandler();
+            return;
+        }
+
+        startDemo();
+    }
+
+    function stageTooSmallHandler(){
+        var warning = "Sorry, bigger screen required :(";
+        var props = new Sakri.CanvasTextProperties(null,null,24);
+        context.font = props.getFontString();
+        context.fillStyle = "#000000";
+        context.fillText(warning, bounds.getCenterX() - context.measureText(warning).width/2, bounds.getCenterY()-12);
+    }
+
+
+
+    //========================
+    //Demo specific properties
+    //========================
+    var marchingSquaresTimeOutId = -1;
+    var fontProperties = new Sakri.CanvasTextProperties(Sakri.CanvasTextProperties.BOLD, null, 40);
+    var fillStyle = "#0b0b2e";
+    var characters = "ABCDEFGHIJKLMNOPQRSTUVXYZ1234567890";
+    var currentCharacterIndex = 0;
+    var currentCharacterOutline;
+    var charactersBounds = new Sakri.Geom.Rectangle(0,0,250,250);
+    var marchGridsBounds = new Sakri.Geom.Rectangle(0,0,250,250);
+    var characterCanvas;
+    var characterContext;
+    var characterScaleFactor;
+    var marchingPixelContext;
+    var marchingPixelCanvas;
+    var currentScanPosition;
+    var optionGridRect = new Sakri.Geom.Rectangle();
+    var optionRect = new Sakri.Geom.Rectangle();
+    var bigBounds = new Sakri.Geom.Rectangle();
+    var outline;
+
+    function clearTimeoutsAndIntervals(){
+        clearTimeout(marchingSquaresTimeOutId);
+    }
+
+    function startDemo(){
+        context.clearRect(0, 0, canvas.width, canvas.height);
+        characterCanvas = document.createElement('canvas');
+        marchingPixelCanvas = document.createElement("canvas");
+        demoNextCharacter();
+    }
+
+
+    function demoNextCharacter(){
+        context.clearRect(0,0,canvas.width, canvas.height);
+        characterContext = characterCanvas.getContext("2d");
+
+        characterContext.clearRect(0,0,characterCanvas.width, characterCanvas.height);
+        characterContext.font = fontProperties.getFontString();
+        characterContext.textBaseline = "top";
+        characterCanvas.width = characterContext.measureText(characters[currentCharacterIndex]).width;
+        characterCanvas.height = fontProperties.fontSize;
+
+        characterContext = characterCanvas.getContext("2d");
+        characterContext.fillStyle = "#AAAAAA";
+        characterContext.font = fontProperties.getFontString();
+        characterContext.textBaseline = "top";
+        characterContext.fillText(characters[currentCharacterIndex],0,0);
+        renderCharacter();
+        renderAllOptions();
+        currentCharacterIndex++;
+        currentCharacterIndex %= characters.length;
+
+        marchingPixelCanvas.width = characterCanvas.width + 2;
+        marchingPixelCanvas.height = characterCanvas.height + 2;
+        marchingPixelContext = marchingPixelCanvas.getContext("2d");
+        marchingPixelContext.drawImage(characterCanvas,1,1);
+
+        outline = [];
+        outline[0] = Sakri.BitmapUtil.getFirstNonTransparentPixelTopDown(marchingPixelCanvas);
+        outline[0].add(-1, -1);//in order for the lookup to work, we move the position up and back one
+        currentScanPosition = outline[0].clone();
+
+        displayCurrentScanPosition();
+    }
+
+    function displayCurrentScanPosition(){
+        renderCharacter();
+
+        context.fillStyle = "#FF0000";
+        var position;
+        for(var i=0;i<outline.length;i++){
+            position = outline[i];
+            context.fillRect(charactersBounds.x+position.x, charactersBounds.y+position.y, 1, 1);
+            context.fillRect(bigBounds.x+position.x*characterScaleFactor, bigBounds.y+position.y*characterScaleFactor, characterScaleFactor, characterScaleFactor );
+        }
+
+        //render scan grid outline
+        context.lineWidth = 1;
+        context.strokeStyle = "#0000FF";
+        context.strokeRect(bigBounds.x+(currentScanPosition.x-1)*characterScaleFactor, bigBounds.y+(currentScanPosition.y-1)*characterScaleFactor, characterScaleFactor*2, characterScaleFactor*2);
+
+
+        marchingSquaresTimeOutId = setTimeout(scanNextOutlinePoint, 500);
+        renderAllOptions();
+    }
+
+    function scanNextOutlinePoint(){
+        //console.log("scanNextOutlinePoint()");
+        var gridString = Sakri.MarchingSquares.getGridStringFromPoint(marchingPixelContext, currentScanPosition);
+        var next = Sakri.MarchingSquares.getNextEdgePoint(currentScanPosition, gridString);
+        if(next.equals(outline[0])){
+            demoNextCharacter();
+            return;
+        }
+
+        //render next
+        renderAllOptions(gridString);
+
+        currentScanPosition = next;
+        outline.push(next);
+        marchingSquaresTimeOutId = setTimeout(displayCurrentScanPosition, 500);
+    }
+
+    function renderCharacter(){
+        context.clearRect(charactersBounds.x, charactersBounds.y, charactersBounds.width, charactersBounds.height);
+        var width = characterContext.measureText(characters[currentCharacterIndex]).width;
+        var height = fontProperties.fontSize;
+        characterScaleFactor = Math.floor(Math.min(charactersBounds.width / width, charactersBounds.height / height));
+        context.fillStyle = "#AAAAAA";
+        var data = characterContext.getImageData(0,0, width, height).data;
+
+        var i, x, y;
+        bigBounds.update(charactersBounds.x + width , charactersBounds.y, width*characterScaleFactor, height*characterScaleFactor);
+        //render character
+        for(i=0; i<data.length; i+=4){
+            if(data[i]+data[i+1]+data[i+2]+data[i+3] > 0){
+                x = (i/4)%width;
+                y = Math.floor((i/4)/width);
+                context.fillRect(charactersBounds.x + x, charactersBounds.y + y, 1, 1 );
+                context.fillRect(bigBounds.x+x*characterScaleFactor, bigBounds.y+y*characterScaleFactor, characterScaleFactor, characterScaleFactor );
+            }
+        }
+        //render graph lines
+        context.fillStyle = "#FFFFFF";
+
+        for(i = characterScaleFactor; i < bigBounds.height; i+=characterScaleFactor){
+            context.fillRect(bigBounds.x, bigBounds.y + i, bigBounds.width, 1);
+        }
+        for(i = characterScaleFactor; i < bigBounds.width; i+=characterScaleFactor){
+            context.fillRect(bigBounds.x + i , bigBounds.y, 1, bigBounds.height);
+        }
+    }
+
+    function renderAllOptions(currentOptionString){
+        context.clearRect(optionGridRect.x, optionGridRect.y, optionGridRect.width, optionGridRect.height);
+        var margin = 4;
+        var cols = 4;
+        var optionSize = marchGridsBounds.width/cols;
+        optionRect = new Sakri.Geom.Rectangle(0,0,optionSize-margin, optionSize-margin);
+        optionGridRect.width = optionSize/2.5;
+        optionGridRect.height = optionSize/2.5;
+        var options = [];
+        var i, option;
+        for(option in Sakri.MarchingSquares.possibleGrids){
+            options.push({string:option, point:Sakri.MarchingSquares.possibleGrids[option]});
+        }
+        for(var i=0; i<options.length; i++){
+            optionRect.x = marchGridsBounds.x + (i%cols) * optionSize;
+            optionRect.y = marchGridsBounds.y + Math.floor(i/cols) * optionSize;
+            optionRect.floor();
+            context.strokeStyle = currentOptionString==options[i].string ? "#FF0000" : "#AAAAAA";
+            context.strokeRect(optionRect.x, optionRect.y, optionRect.width, optionRect.height);
+            renderOption(options[i], optionRect, currentOptionString==options[i].string);
+        }
+
+    }
+
+
+
+    function renderOption(option, rect, highLight){
+        context.strokeStyle = highLight ? "#FF0000" : "#666666";
+        context.fillStyle = highLight ? "#FF0000" : "#333333";
+        optionGridRect.x =  rect.getCenterX() - optionGridRect.width;
+        optionGridRect.y = rect.getCenterY() - optionGridRect.height/2;
+        context.strokeRect(optionGridRect.x, optionGridRect.y, optionGridRect.width, optionGridRect.height);
+        //too lazy to write a loop for this, copy paste saves the day ;)
+        if(option.string.charAt(0)=="1"){
+            context.fillRect(optionGridRect.x, optionGridRect.y, optionGridRect.width/2, optionGridRect.height/2 );
+        }
+        if(option.string.charAt(1)=="1"){
+            context.fillRect(optionGridRect.x+optionGridRect.width/2, optionGridRect.y, optionGridRect.width/2, optionGridRect.height/2 );
+        }
+        if(option.string.charAt(2)=="1"){
+            context.fillRect(optionGridRect.x, optionGridRect.y+optionGridRect.height/2, optionGridRect.width/2, optionGridRect.height/2 );
+        }
+        if(option.string.charAt(3)=="1"){
+            context.fillRect(optionGridRect.x+optionGridRect.width/2, optionGridRect.y+optionGridRect.height/2, optionGridRect.width/2, optionGridRect.height/2 );
+        }
+        optionGridRect.x = rect.getCenterX();
+        context.save();
+        context.lineWidth = 3;
+        context.translate(optionGridRect.getCenterX()+optionGridRect.width/10, optionGridRect.getCenterY());
+        switch(option.point.x+""+option.point.y){
+            case "11":
+                context.rotate(Math.PI/2);
+                break;
+            case "-10":
+                context.rotate(Math.PI);
+                break;
+            case "0-1":
+                context.rotate(Math.PI+Math.PI/2);
+                break;
+        }
+        renderArrow(optionGridRect.width/2, optionGridRect.height/2);
+        context.restore();
+    }
+
+    function renderArrow(width,height){
+        //line
+        context.beginPath();
+        context.moveTo(width/10, 0);
+        context.lineTo(width-width/10, 0);
+        context.stroke();
+        context.closePath();
+
+        //arrowhead
+        context.beginPath();
+        context.moveTo(width/2, -height/2+height/10);
+        context.lineTo(width-width/10, 0);
+        context.lineTo(width/2, height/2-height/10);
+        context.stroke();
+        context.closePath();
+    }
+
+
+    var readyStateCheckInterval = setInterval( function() {
+        if (document.readyState === "complete") {
+            clearInterval(readyStateCheckInterval);
+            init();
+        }
+    }, 10);
+
+
+
+    </script>
+
+    <style type="text/css">
+
+        html, body{
+            margin : 0px;
+            width : 100%;
+            height : 100%;
+            overflow: hidden;
+        }
+
+        #canvasContainer{
+            margin : 0px;
+            width : 100%;
+            height : 100%;
+        }
+
+    </style>
+
+</head>
+<body>
+    <div id="canvasContainer"></div>
+</body>
+</html>
