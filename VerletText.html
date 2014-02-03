@@ -1,0 +1,435 @@
+<!Doctype html>
+<html lang="en" >
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" />
+		<title>Verlet Text</title>
+
+		<style type="text/css">
+		</style>
+
+        <script type="text/javascript" src="commonJS/MathUtil.js" ></script>
+        <script type="text/javascript" src="commonJS/Geom.js" ></script>
+        <script type="text/javascript" src="commonJS/CanvasTextUtil.js" ></script>
+        <script type="text/javascript" src="commonJS/BitmapUtil.js" ></script>
+        <script type="text/javascript" src="commonJS/Verlet.js" ></script>
+
+		
+		<script type="text/javascript">
+
+        //========================
+        //general properties for demo set up
+        //========================
+        var canvas;
+        var context;
+        var canvasContainer;
+        var htmlBounds;
+        var bounds;
+        var minimumStageWidth = 250;
+        var minimumStageHeight = 250;
+        var resizeTimeoutId = -1;
+
+        function init(){
+            canvas = document.createElement('canvas');
+            canvas.style.position = "absolute";
+            context = canvas.getContext("2d");
+            canvasContainer = document.getElementById("canvasContainer");
+            canvasContainer.appendChild(canvas);
+            window.onresize = resizeHandler;
+            commitResize();
+        }
+
+        function getWidth( element ){return Math.max(element.scrollWidth,element.offsetWidth,element.clientWidth );}
+        function getHeight( element ){return Math.max(element.scrollHeight,element.offsetHeight,element.clientHeight );}
+
+        //avoid running resize scripts repeatedly if a browser window is being resized by dragging
+        function resizeHandler(){
+            context.clearRect(0,0,bounds.width, bounds.height);
+            clearTimeoutsAndIntervals();
+            clearTimeout (resizeTimeoutId);
+            resizeTimeoutId = setTimeout(function(){commitResize();}, 300 );
+        }
+
+        function commitResize(){
+            htmlBounds = new Sakri.Geom.Rectangle(0,0, getWidth(this.canvasContainer) , getHeight(canvasContainer));
+            if(htmlBounds.width>=800){
+                canvas.width = 800;
+                canvas.style.left = htmlBounds.getCenterX() - 400+"px";
+            }else{
+                canvas.width = htmlBounds.width;
+                canvas.style.left ="0px";
+            }
+            if(htmlBounds.height>600){
+                canvas.height = 600;
+                canvas.style.top = htmlBounds.getCenterY() - 300+"px";
+            }else{
+                canvas.height = htmlBounds.height;
+                canvas.style.top ="0px";
+            }
+            bounds = new Sakri.Geom.Rectangle(0,0, canvas.width, canvas.height);
+            context = canvas.getContext("2d");
+            context.clearRect(0,0,bounds.width, bounds.height);
+
+            if(bounds.width<minimumStageWidth || bounds.height<minimumStageHeight){
+                stageTooSmallHandler();
+                return;
+            }
+
+            startDemo();
+        }
+
+        function stageTooSmallHandler(){
+            var warning = "Sorry, bigger screen required :(";
+            var props = new Sakri.CanvasTextProperties(null,null,24);
+            context.font = props.getFontString();
+            context.fillStyle = "#000000";
+            context.fillText(warning, bounds.getCenterX() - context.measureText(warning).width/2, bounds.getCenterY()-12);
+        }
+
+        var readyStateCheckInterval = setInterval( function() {
+            if (document.readyState === "complete") {
+                clearInterval(readyStateCheckInterval);
+                init();
+            }
+        }, 10);
+
+
+        //========================
+        //Demo specific properties
+        //========================
+
+        function clearTimeoutsAndIntervals(){
+            animating = false;
+        }
+
+        var sourceImage;
+        var sourceImageRect;
+        var fillPattern;
+
+        var characterCanvas;
+        var renderCanvas;
+
+        var triangleCanvas;
+        var triangleContext;
+        var words = ["SAKRI", "CANVAS", "DEVSTATE"];
+        var currentText;
+
+
+        var backgroundColor = "#0c0d43";
+        var rows = 2;
+        var cols = 4;
+        var cellWidth;
+        var cellHeight;
+        var verletStage;
+        var verletGrid;
+        var triangles;
+        var verletTriangles;
+        var reverseVerletTriangles;
+        var fontProperties = new Sakri.CanvasTextProperties(Sakri.CanvasTextProperties.BOLD, null, 160);
+
+        function startDemo(){
+            currentText = words[Math.floor(Math.random()*words.length)];
+            createSourceImage();//image containing text
+            cellWidth = sourceImage.width / cols;
+            cellHeight = sourceImage.height / rows;
+            createTriangleCanvas();
+            sourceImageRect = new Sakri.Geom.Rectangle(0, 0, sourceImage.width, sourceImage.height);
+            console.log("startDemo()", cellWidth, cellHeight, sourceImageRect.toString());
+            setUpVerletGrid();
+            createImageTriangles();
+            verletGrid.sticks[0].applyForce(1 + Math.random() * 8, 0);
+            gameLoop();
+        }
+
+        var animating = false;
+        var bounceIntervalId = -1;
+
+        function animate(){
+            clearInterval(bounceIntervalId);
+            animating =! animating;
+            document.getElementById("animateButton").innerHTML = animating ? "pause" : "play";
+            if(animating){
+                bounceIntervalId = setInterval(bounce, 4000);
+            }
+        }
+
+        function bounce(){
+            for(var i = 0; i < verletGrid.sticks.length; i++){
+                verletGrid.sticks[i].applyForce(0 , -Math.random());
+            }
+            verletGrid.sticks[0].applyForce((Math.random()>.5 ? 1 : -1) * Math.random() * 5, 0);//a bit of horizontal force as well
+        }
+
+        function animateOne(){
+            if(!animating){
+                drawScreen();
+            }
+        }
+
+        function reset(){
+            location.reload();
+        }
+
+        function gameLoop() {
+            window.setTimeout(gameLoop, 20);
+            if(animating){
+                drawScreen();
+            }
+        }
+
+        //The demo only works if the source image has no transparent pixels. Somhow they screw up context.createPattern()
+        //The text therefore first rendered with no bg
+        //then the white space is trimmed
+        //then it's rerendered with a background using the dimensions from the trimmed version.
+        function createSourceImage(){
+            console.log("createSourceImage()")
+            var renderCanvas = document.createElement('canvas');
+            var renderContext = renderCanvas.getContext("2d");
+
+            renderContext.clearRect(0,0,renderCanvas.width, renderCanvas.height);
+            renderContext.font = fontProperties.getFontString();
+            renderContext.textBaseline = "top";
+            renderCanvas.width = renderContext.measureText(currentText).width;
+            renderCanvas.height = fontProperties.fontSize;
+
+            renderContext = renderCanvas.getContext("2d");
+            var textGradient = context.createLinearGradient(0, renderCanvas.height,0,0 );
+            textGradient.addColorStop(0,"#dc400f");
+            textGradient.addColorStop(1,"#ff9c2c");
+            renderContext.fillStyle = textGradient;
+            renderContext.font = fontProperties.getFontString();
+            renderContext.textBaseline = "top";
+            renderContext.fillText(currentText,0,0);
+            renderContext.strokeStyle = "#FFFFFF";
+            renderContext.strokeText(currentText,0,0);
+
+            //context.drawImage(renderCanvas,0,0);
+
+            var rect = Sakri.BitmapUtil.getCanvasTrimRectangle(renderCanvas);
+
+            sourceImage = document.createElement('canvas');
+            sourceImage.width = rect.width;
+            sourceImage.height = rect.height;
+            var sourceImageContext = sourceImage.getContext("2d");
+
+            sourceImageContext.fillStyle = backgroundColor;
+            sourceImageContext.fillRect(0, 0, rect.width, rect.height);
+            sourceImageContext.drawImage(renderCanvas, rect.x, rect.y, rect.width, rect.height, 0, 0, rect.width, rect.height);
+
+        }
+
+        function createTriangleCanvas(){
+            triangleCanvas = document.createElement("canvas");
+            triangleCanvas.width = cellWidth;
+            triangleCanvas.height = cellHeight;
+            console.log("createTriangleCanvas()", triangleCanvas.width, triangleCanvas.height );
+            triangleContext = triangleCanvas.getContext("2d");
+        }
+
+        function setUpVerletGrid(){
+            var constrain = new Sakri.Geom.Rectangle(bounds.x, bounds.y, bounds.width, bounds.height);
+            verletGrid = new Sakri.VerletGrid(sourceImage.width, sourceImage.height, rows, cols, constrain);
+            verletStage = new Sakri.VerletStage(context, constrain, verletGrid.sticks, false, false);
+        }
+
+
+        function getMatchingVerletPoint(point){
+            var verlet, i;
+            for(i = 0; i < verletGrid.points.length; i++){
+                verlet = verletGrid.points[i];
+                if(verlet.x == point.x && verlet.y == point.y){
+                    return verlet;
+                }
+            }
+            console.log("getMatchingVerletPoint() no match found for " + point.toString());
+        }
+
+        function matchVerletPointsToTriangle(triangle){
+            var match = new Sakri.Geom.Triangle(getMatchingVerletPoint(triangle.a), getMatchingVerletPoint(triangle.b), getMatchingVerletPoint(triangle.c));
+            //console.log(match.toString());
+            return match;
+        }
+
+        function createImageTriangles(){
+            var triangle, reverseTriangle, i, j;
+            triangles = [];
+            verletTriangles = [];
+            reverseVerletTriangles = [];
+            for(i = 0; i < rows; i++){
+                for(j = 0; j < cols; j++){
+
+                    triangle = new Sakri.Geom.Triangle(new Sakri.Geom.Point(j * cellWidth, i * cellHeight), new Sakri.Geom.Point(j * cellWidth+cellWidth, i * cellHeight), new Sakri.Geom.Point(j * cellWidth, i * cellHeight + cellHeight) );
+                    triangles.push(triangle);
+                    //console.log(triangle.toString());
+
+                    reverseTriangle = new Sakri.Geom.Triangle(new Sakri.Geom.Point(triangle.b.x, triangle.c.y), new Sakri.Geom.Point(triangle.c.x, triangle.c.y), new Sakri.Geom.Point(triangle.b.x, triangle.b.y) );
+
+                    verletTriangles.push(matchVerletPointsToTriangle(triangle));
+                    reverseVerletTriangles.push(matchVerletPointsToTriangle(reverseTriangle));
+
+                }
+            }
+        }
+
+        function drawScreen(){
+            //console.log("drawScreen()");
+            context.fillStyle = backgroundColor;
+            context.fillRect(0, 0, bounds.width, bounds.height);
+            renderTriangles();
+            verletStage.update();
+        }
+
+        function renderTriangles(){
+            //console.log("renderTriangles()", triangles.length);
+            for(var i = 0; i < triangles.length; i++){
+                context.save();
+                renderTriangle(triangles[i], verletTriangles[i]);
+                context.restore();
+                context.save();
+                renderReverseTriangle(triangles[i], reverseVerletTriangles[i]);
+                context.restore();
+            }
+        }
+
+
+        /*function transformToString(t){
+            return "(scaleX:" + t.scaleX + " , skewX:" + t.skewX + " , skewY:" + t.skewY + " , scaleY:" + t.scaleY + " , " + t.tx + " , " + t.ty + ")";
+        }*/
+
+        //TOP TRIANGLE
+        function renderTriangle(sourceTriangle, targetTriangle){
+            //console.log("renderTriangle()", sourceTriangle.toString(), targetTriangle.toString());
+            //console.log("renderTriangle()", context, triangleCanvas);
+            triangleContext.drawImage(sourceImage, -sourceTriangle.a.x, -sourceTriangle.a.y);
+            fillPattern = context.createPattern(triangleCanvas, 'no-repeat');
+
+            context.fillStyle = fillPattern;
+            //context.fillStyle = "#FF0000";
+
+            updateTriangleTransform(sourceTriangle, targetTriangle);
+            context.setTransform(transform.scaleX, transform.skewX, transform.skewY, transform.scaleY, transform.tx, transform.ty);
+
+            context.beginPath();
+
+            //+1s and -1s are adjustments to avoid empty space between rendered triangles
+            context.moveTo(-1, -1);
+            context.lineTo(triangles[0].b.x + 1, triangles[0].b.y - 1);
+            context.lineTo(-1, triangles[0].c.y + 1);
+            context.lineTo(-1, -1);
+
+            context.closePath();
+            context.fill();
+        }
+
+        //BOTTOM TRIANGLE
+        function renderReverseTriangle(sourceTriangle, targetTriangle){
+
+            updateReflectedTriangle(targetTriangle);
+            triangleContext.drawImage(sourceImage, -sourceTriangle.a.x, -sourceTriangle.a.y);
+
+            fillPattern = context.createPattern(triangleCanvas, 'no-repeat');
+            context.fillStyle = fillPattern;
+            //context.fillStyle = "#00FF00";
+
+            updateTriangleTransform(sourceTriangle, reflectedTriangle);
+            //console.log("transform : ",transformToString(transform));
+
+            context.setTransform(transform.scaleX, transform.skewX, transform.skewY, transform.scaleY, transform.tx, transform.ty);
+
+            context.beginPath();
+
+            //+1s and -1s are adjustments to avoid empty space between rendered triangles
+            context.moveTo(triangles[0].b.x, triangles[0].b.y - 1);
+            context.lineTo(triangles[0].b.x, triangles[0].c.y + 1);
+            context.lineTo(-1, triangles[0].c.y + 1);
+            context.lineTo(triangles[0].b.x, triangles[0].b.y - 1);
+            context.closePath();
+            context.fill();
+        }
+
+        var transform = new Object();
+        function updateTriangleTransform(sourceTriangle, transformedTriangle){
+
+            var xAngle = Sakri.Geom.Point.angleBetweenTwoPoints( transformedTriangle.b, transformedTriangle.a );
+            var yAngle = Sakri.Geom.Point.angleBetweenTwoPoints( transformedTriangle.c, transformedTriangle.a );
+
+            var transformedWidth = Sakri.Geom.Point.distanceBetweenTwoPoints(transformedTriangle.a, transformedTriangle.b);
+            var transformedHeight = Sakri.Geom.Point.distanceBetweenTwoPoints( transformedTriangle.a, transformedTriangle.c );
+
+            var xScale = transformedWidth / (sourceTriangle.b.x - sourceTriangle.a.x);
+            var yScale = transformedHeight / (sourceTriangle.c.y - sourceTriangle.a.y);
+
+            transform.scaleX = Math.cos(xAngle) * xScale;
+            transform.scaleY = Math.sin(yAngle) * yScale;
+
+            transform.skewX = Math.sin(xAngle) * xScale;
+            transform.skewY = Math.cos(yAngle) * yScale;
+
+            transform.tx = transformedTriangle.a.x;
+            transform.ty = transformedTriangle.a.y;
+
+            //console.log("updateTriangleTransfor() ",transform.scaleX, transform.scaleY, transform.skewX, transform.skewY, transform.tx, transform.ty);
+
+        }
+
+        var reflectedTriangle = new Sakri.Geom.Triangle();
+
+        //receives a "bottom verlet" triangle
+        function updateReflectedTriangle(transformedTriangle){
+            reflectedTriangle.b = transformedTriangle.c;
+            reflectedTriangle.c = transformedTriangle.b;
+
+            var angleAC = Sakri.Geom.Point.angleBetweenTwoPoints( transformedTriangle.c, transformedTriangle.a );
+            var radius = Sakri.Geom.Point.distanceBetweenTwoPoints(transformedTriangle.a, transformedTriangle.c);
+
+            reflectedTriangle.a.x = transformedTriangle.b.x + Math.cos(angleAC) * radius;
+            reflectedTriangle.a.y = transformedTriangle.b.y + Math.sin(angleAC) * radius;
+
+            if(!animating){
+                console.log("updateReflectedTriangle() "+ transformedTriangle.toString());
+                console.log("angleAC : " + angleAC);
+                console.log("radius : " + radius);
+                console.log("reflectedTriangle " + reflectedTriangle.toString());
+            }
+        }
+			
+			
+		</script>
+
+        <style type="text/css">
+
+            html, body{
+                margin : 0px;
+                width : 100%;
+                height : 100%;
+                overflow: hidden;
+            }
+
+            #canvasContainer{
+                position: absolute;
+                margin : 0px;
+                width : 100%;
+                height : 100%;
+            }
+
+            #controls{
+                position: absolute;
+            }
+
+        </style>
+
+	</head>
+	<body  >
+
+        <div id="canvasContainer"></div>
+
+        <nav id="controls">
+
+            <button id="animateButton" onclick="animate()" type="button">go!</button>
+            <button onclick="reset()" type="button">reset</button>
+            <button onclick="animateOne()" type="button">animate one</button>
+
+        </nav>
+
+	</body>
+</html>

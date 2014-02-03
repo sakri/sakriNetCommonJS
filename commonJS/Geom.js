@@ -259,7 +259,33 @@
         //console.log("sharesEdge()",sharedPoints);
         return sharedPoints==2;
     };
-    
+
+    Sakri.Geom.Triangle.createRandomTriangleInRect = function(rect){
+        var a = new Sakri.Geom.Point(rect.x + Math.random() * rect.width, rect.y + Math.random() * rect.height);
+        var b = new Sakri.Geom.Point(rect.x + Math.random() * rect.width, rect.y + Math.random() * rect.height);
+        var c = new Sakri.Geom.Point(rect.x + Math.random() * rect.width, rect.y + Math.random() * rect.height);
+        return new Sakri.Geom.Triangle(a,b,c);
+    }
+
+    Sakri.Geom.Triangle.mirrorTriangleInRectangle = function(triangle, rect){
+        //console.log("mirrorTriangleInRectangle() ",width,height);
+        //console.log("\ttriangle : ",triangle.toString());
+        var a = Sakri.Geom.Triangle.mirrorPointInRectangle(triangle.a, rect);
+        var b = Sakri.Geom.Triangle.mirrorPointInRectangle(triangle.b, rect);
+        var c = Sakri.Geom.Triangle.mirrorPointInRectangle(triangle.c, rect);
+        return new Sakri.Geom.Triangle.Triangle(a, b, c);
+        //console.log("\ttriangle : ",triangle.toString());
+    }
+
+    Sakri.Geom.Triangle.offsetTriangle = function(triangle, offset){
+        triangle.a.x += offset;
+        triangle.a.y += offset;
+        triangle.b.x += offset;
+        triangle.b.y += offset;
+        triangle.c.x += offset;
+        triangle.c.y += offset;
+    }
+
 	//==================================================
 	//===================::RECTANGLE::==================
 	//==================================================

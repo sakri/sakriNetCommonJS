@@ -20,23 +20,26 @@
     //This is a lookup table of all possible 4 pixel grids, used to decide "scanning positions" during the edge detection process
     //Zeros represent transparent pixels, Ones represent a non transparent pixel
     Sakri.MarchingSquares.possibleGrids = {
-        "1100":new Sakri.Geom.Point(-1,0),
         "0011":new Sakri.Geom.Point(1,0),
-        "1110":new Sakri.Geom.Point(0,1),
-
-        "0100":new Sakri.Geom.Point(0,-1),
-        "1000":new Sakri.Geom.Point(-1,0),
         "1011":new Sakri.Geom.Point(1,0),
+        "0001":new Sakri.Geom.Point(1,0),
         "1001":new Sakri.Geom.Point(1,0),
 
+        "0100":new Sakri.Geom.Point(0,-1),
         "0101":new Sakri.Geom.Point(0,-1),
-        "1010":new Sakri.Geom.Point(0,1),
         "0111":new Sakri.Geom.Point(0,-1),
         "0110":new Sakri.Geom.Point(0,-1),
 
-        "0001":new Sakri.Geom.Point(1,0),
-        "0010":new Sakri.Geom.Point(0,1),
-        "1101":new Sakri.Geom.Point(-1,0)
+        "1100":new Sakri.Geom.Point(-1,0),
+        "1000":new Sakri.Geom.Point(-1,0),
+        "1101":new Sakri.Geom.Point(-1,0),
+
+
+
+        "1110":new Sakri.Geom.Point(0,1),
+        "1010":new Sakri.Geom.Point(0,1),
+        "0010":new Sakri.Geom.Point(0,1)
+
     };
 
 

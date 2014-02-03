@@ -3,6 +3,7 @@
 <head>
     <title>Marching Squares Test</title>
 
+    <script type="text/javascript" src="commonJS/MathUtil.js" ></script>
     <script type="text/javascript" src="commonJS/Geom.js" ></script>
     <script type="text/javascript" src="commonJS/CanvasTextUtil.js" ></script>
     <script type="text/javascript" src="commonJS/BitmapUtil.js" ></script>
@@ -277,7 +278,7 @@
         context.lineWidth = 3;
         context.translate(optionGridRect.getCenterX()+optionGridRect.width/10, optionGridRect.getCenterY());
         switch(option.point.x+""+option.point.y){
-            case "11":
+            case "01":
                 context.rotate(Math.PI/2);
                 break;
             case "-10":
