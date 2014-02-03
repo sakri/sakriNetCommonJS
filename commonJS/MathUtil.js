@@ -32,8 +32,6 @@
         return degree * Sakri.MathUtil.PI_180;
     };
 
-
-
 	//return number between 1 and 0
 	Sakri.MathUtil.normalize = function(value, minimum, maximum){
 		return (value - minimum) / (maximum - minimum);

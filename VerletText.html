@@ -99,8 +99,13 @@
         //========================
 
         function clearTimeoutsAndIntervals(){
-            animating = false;
+            clearInterval(bounceIntervalId);
+            clearInterval(intervalId);
+
         }
+
+        var intervalId = -1;
+        var bounceIntervalId = -1;
 
         var sourceImage;
         var sourceImageRect;
@@ -111,9 +116,8 @@
 
         var triangleCanvas;
         var triangleContext;
-        var words = ["SAKRI", "CANVAS", "DEVSTATE"];
+        var words = ["SAKRI", "JELLO"];
         var currentText;
-
 
         var backgroundColor = "#0c0d43";
         var rows = 2;
@@ -134,23 +138,11 @@
             cellHeight = sourceImage.height / rows;
             createTriangleCanvas();
             sourceImageRect = new Sakri.Geom.Rectangle(0, 0, sourceImage.width, sourceImage.height);
-            console.log("startDemo()", cellWidth, cellHeight, sourceImageRect.toString());
             setUpVerletGrid();
             createImageTriangles();
             verletGrid.sticks[0].applyForce(1 + Math.random() * 8, 0);
-            gameLoop();
-        }
-
-        var animating = false;
-        var bounceIntervalId = -1;
-
-        function animate(){
-            clearInterval(bounceIntervalId);
-            animating =! animating;
-            document.getElementById("animateButton").innerHTML = animating ? "pause" : "play";
-            if(animating){
-                bounceIntervalId = setInterval(bounce, 4000);
-            }
+            bounceIntervalId = setInterval(bounce, 4000);
+            intervalId = window.setInterval(drawScreen, 20);
         }
 
         function bounce(){
@@ -160,29 +152,12 @@
             verletGrid.sticks[0].applyForce((Math.random()>.5 ? 1 : -1) * Math.random() * 5, 0);//a bit of horizontal force as well
         }
 
-        function animateOne(){
-            if(!animating){
-                drawScreen();
-            }
-        }
-
-        function reset(){
-            location.reload();
-        }
-
-        function gameLoop() {
-            window.setTimeout(gameLoop, 20);
-            if(animating){
-                drawScreen();
-            }
-        }
 
         //The demo only works if the source image has no transparent pixels. Somhow they screw up context.createPattern()
         //The text therefore first rendered with no bg
         //then the white space is trimmed
         //then it's rerendered with a background using the dimensions from the trimmed version.
         function createSourceImage(){
-            console.log("createSourceImage()")
             var renderCanvas = document.createElement('canvas');
             var renderContext = renderCanvas.getContext("2d");
 
@@ -222,7 +197,6 @@
             triangleCanvas = document.createElement("canvas");
             triangleCanvas.width = cellWidth;
             triangleCanvas.height = cellHeight;
-            console.log("createTriangleCanvas()", triangleCanvas.width, triangleCanvas.height );
             triangleContext = triangleCanvas.getContext("2d");
         }
 
@@ -241,7 +215,6 @@
                     return verlet;
                 }
             }
-            console.log("getMatchingVerletPoint() no match found for " + point.toString());
         }
 
         function matchVerletPointsToTriangle(triangle){
@@ -385,12 +358,6 @@
             reflectedTriangle.a.x = transformedTriangle.b.x + Math.cos(angleAC) * radius;
             reflectedTriangle.a.y = transformedTriangle.b.y + Math.sin(angleAC) * radius;
 
-            if(!animating){
-                console.log("updateReflectedTriangle() "+ transformedTriangle.toString());
-                console.log("angleAC : " + angleAC);
-                console.log("radius : " + radius);
-                console.log("reflectedTriangle " + reflectedTriangle.toString());
-            }
         }
 			
 			
@@ -425,9 +392,7 @@
 
         <nav id="controls">
 
-            <button id="animateButton" onclick="animate()" type="button">go!</button>
             <button onclick="reset()" type="button">reset</button>
-            <button onclick="animateOne()" type="button">animate one</button>
 
         </nav>
 
