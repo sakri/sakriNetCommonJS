@@ -5,7 +5,6 @@
 
     <script type="text/javascript" src="commonJS/MathUtil.js" ></script>
     <script type="text/javascript" src="commonJS/Geom.js" ></script>
-    <script type="text/javascript" src="commonJS/RectangleUtil.js" ></script>
     <script type="text/javascript" src="commonJS/CanvasTextUtil.js" ></script>
     <script type="text/javascript" src="commonJS/BitmapUtil.js" ></script>
     <script type="text/javascript" src="commonJS/MarchingSquares.js" ></script>
@@ -104,26 +103,31 @@
     //========================
 
 
-    var words = ["CANVAS", "CodePen", "SAKRI", "DevState" ];
+    var words = ["GHOST", "SAKRI", "CANVAS", "CodePen", "DevState" ];
     var currentWord;
     var wordIndex = 0;
     var wordBounds = new Sakri.Geom.Rectangle();
     var wordAlpha = 0;
 
-    var bgColor = "#0c0d43";
+    //var bgColor = "#0c0d43";
+    var bgColor = "#000000";
     var outlines;//stores outline points of characters from marching squares
 
     var shinePoint = new Sakri.Geom.Point();
     var shineTarget = new Sakri.Geom.Point();
     var maxRayLength = 80;
     var outlinePointsSkip = 4;//the effect doesn't need all the outline points, this amount gets skipped. Poor bastards.
-    var minShineSpeed = 1;
-    var maxShineSpeed = 3;
-    var shineSpeed;
+    var minMoveSpeed = 2;
+    var maxMoveSpeed = 4;
+    var moveSpeed;
     var maxEffectDistance;
 
     var fontProperties = new Sakri.CanvasTextProperties(Sakri.CanvasTextProperties.BOLD, null, 160);
 
+    var charCenter = new Sakri.Geom.Point();
+    var average = new Sakri.Geom.Point();
+    var rayPoint = new Sakri.Geom.Point();
+    var furthestPoint = new Sakri.Geom.Point();
 
     function startDemo(){
         renderBackground();
@@ -196,10 +200,7 @@
         context.strokeText(currentWord, wordBounds.x, wordBounds.y);
     }
 
-    var charCenter = new Sakri.Geom.Point();
-
     function renderCurrentWordWithShading(){
-        context.fillStyle = "#FFFFFF";
         context.save();
         context.shadowColor = "#FFFFFF";
         charCenter.y = wordBounds.y+wordBounds.height/2;
@@ -208,8 +209,17 @@
         for(i=0; i<currentWord.length;i++){
             charCenter.x = xOffset + context.measureText(currentWord.charAt(i)).width/2;
             dist = Sakri.Geom.Point.distanceBetweenTwoPoints(shinePoint, charCenter);
-            context.globalAlpha = dist > maxEffectDistance ? .05 : Sakri.MathUtil.map(dist, 0, maxEffectDistance, .9 , .2);
-            context.shadowBlur = dist > maxEffectDistance ? 1 : Sakri.MathUtil.map(dist, 0, maxEffectDistance, 25 , 5);
+            if(dist > maxEffectDistance){
+                context.globalAlpha = 1;
+                context.shadowBlur = 1;
+                context.fillStyle = "#000011";
+                context.strokeStyle = "#000011";
+            }else{
+                context.globalAlpha = Sakri.MathUtil.map(dist, 0, maxEffectDistance, .9 , .2);
+                context.shadowBlur = Sakri.MathUtil.map(dist, 0, maxEffectDistance, 25 , 5);
+                context.fillStyle = "#FFFFFF";
+                context.strokeStyle = "#FFFFFF";
+            }
             context.fillText(currentWord.charAt(i), xOffset, wordBounds.y);
             context.strokeText(currentWord.charAt(i), xOffset, wordBounds.y);
             xOffset += context.measureText(currentWord.charAt(i)).width;
@@ -220,26 +230,24 @@
     function startShine(){
 
         //set start and end coordinates for shinePoint and shineTarget
-        var xValues = [];
-        xValues[0] = Sakri.MathUtil.getRandomNumberInRange(wordBounds.x, wordBounds.x+wordBounds.width/4);
-        xValues[1] = Sakri.MathUtil.getRandomNumberInRange(wordBounds.getCenterX(), wordBounds.getCenterX()+wordBounds.width/4);
-
+        var xValues = [wordBounds.x - wordBounds.height, wordBounds.getRight() + wordBounds.height];
         shinePoint.x = Math.random()>.5 ? xValues.shift() : xValues.pop();
         shineTarget.x = xValues[0];
+        shinePoint.y = shineTarget.y = wordBounds.y + Math.random() * wordBounds.height;
 
-        shinePoint.y = shineTarget.y = wordBounds.getCenterY();
-
-        shineSpeed = (shineTarget.x - shinePoint.x > 0 ? 1 : -1) * Sakri.MathUtil.getRandomNumberInRange(minShineSpeed, maxShineSpeed);
+        moveSpeed = (shineTarget.x - shinePoint.x > 0 ? 1 : -1) * Sakri.MathUtil.getRandomNumberInRange(minMoveSpeed, maxMoveSpeed);
 
         renderBackground();
         renderCurrentWord();
         intervalId = setInterval(updateShine, 20);
+
+        updateFunction = Math.random()>.5 ? renderBlobs : renderOutlines;
     }
 
 
     function updateShine(){
-        shinePoint.x += shineSpeed;
-        if(Math.abs(shineTarget.x-shinePoint.x) <= Math.abs(shineSpeed)){
+        shinePoint.x += moveSpeed;
+        if(Math.abs(shineTarget.x-shinePoint.x) <= Math.abs(moveSpeed)){
             endShine();
             return;
         }
@@ -257,19 +265,18 @@
         context.shadowOffsetY = 0;
 
         for(var i=0; i<outlines.length; i++){
-            renderRaysForOutline(outlines[i]);
+            updateFunction(outlines[i]);
         }
         context.globalAlpha = 1;
         context.shadowBlur = 0;
     }
 
-    function renderRaysForOutline(outline){
+    function renderBlobs(outline){
         var angle, point, i;
         var dist = Sakri.Geom.Point.distanceBetweenTwoPoints(shinePoint, outline[0]);
         if(dist > maxEffectDistance){
             return;
         }
-        //context.globalAlpha = Sakri.MathUtil.map(dist, 0, maxEffectDistance, .3, .05);
         var rayLength = Sakri.MathUtil.map(dist, 0, maxEffectDistance, maxRayLength , maxRayLength/4);
         context.beginPath();
         furthestPoint.x = 0;
@@ -281,15 +288,15 @@
             angle = Sakri.Geom.Point.angleBetweenTwoPoints(shinePoint, point) + Math.PI;
             rayPoint.x = point.x + Math.cos(angle) * rayLength;
             rayPoint.y = point.y + Math.sin(angle) * rayLength;
-            if(rayPoint.x>furthestPoint.x){
+            if(rayPoint.x > furthestPoint.x){
                 furthestPoint.update(rayPoint.x, rayPoint.y);
             }
-            average.x+=rayPoint.x;
-            average.y+=rayPoint.y;
+            average.x += rayPoint.x;
+            average.y += rayPoint.y;
             context.lineTo(rayPoint.x, rayPoint.y);
         }
-        average.x/=outline.length;
-        average.y/=outline.length;
+        average.x /= outline.length;
+        average.y /= outline.length;
         context.closePath();
 
         var gradient = context.createRadialGradient(average.x, average.y, 10, average.x, average.y, Sakri.Geom.Point.distanceBetweenTwoPoints(average, furthestPoint));
@@ -302,11 +309,7 @@
         context.fill();
     }
 
-    var average = new Sakri.Geom.Point();
-    var rayPoint = new Sakri.Geom.Point();
-    var furthestPoint = new Sakri.Geom.Point();
-
-    function renderRaysForOutline2(outline){
+    function renderOutlines(outline){
         var angle, point, i;
         var dist = Sakri.Geom.Point.distanceBetweenTwoPoints(shinePoint, outline[0]);
         if(dist > maxEffectDistance){
@@ -315,34 +318,20 @@
         context.globalAlpha = Sakri.MathUtil.map(dist, 0, maxEffectDistance, .3, .05);
         var rayLength = Sakri.MathUtil.map(dist, 0, maxEffectDistance, maxRayLength , maxRayLength/4);
         context.beginPath();
-        furthestPoint.x = 0;
-        for(i=0; i<outline.length; i++){
+        point = outline[0];
+        angle = Sakri.Geom.Point.angleBetweenTwoPoints(shinePoint, point) + Math.PI;
+        context.moveTo(point.x + Math.cos(angle) * rayLength, point.y + Math.sin(angle) * rayLength);
+        for(i=1; i<outline.length; i++){
             point = outline[i];
             angle = Sakri.Geom.Point.angleBetweenTwoPoints(shinePoint, point) + Math.PI;
-            context.moveTo(point.x, point.y);
-            rayPoint.x = point.x + Math.cos(angle) * rayLength;
-            rayPoint.y = point.y + Math.sin(angle) * rayLength;
-            if(rayPoint.x>furthestPoint.x){
-                furthestPoint.update(rayPoint.x, rayPoint.y);
-            }
-            average.x+=rayPoint.x;
-            average.y+=rayPoint.y;
-            context.lineTo(rayPoint.x, rayPoint.y);
+            context.lineTo(point.x + Math.cos(angle) * rayLength, point.y + Math.sin(angle) * rayLength);
         }
-        average.x/=outline.length;
-        average.y/=outline.length;
         context.closePath();
-
-        var gradient = context.createRadialGradient(average.x, average.y, 10, average.x, average.y, Sakri.Geom.Point.distanceBetweenTwoPoints(average, furthestPoint));
-        gradient.addColorStop(0,"rgba(255,255,255,.8)");
-        gradient.addColorStop(1,"rgba(255,255,255,0)");
-
-        context.fillStyle = gradient;
-
-        //context.stroke();
-        context.fill();
-        //clearInterval(intervalId);
+        context.stroke();
+        context.globalAlpha = 1;
     }
+
+
 
     function endShine(){
         clearInterval(intervalId);
