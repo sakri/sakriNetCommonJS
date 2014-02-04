@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>MARCH AND SHINE</title>
+
+    <script type="text/javascript" src="commonJS/MathUtil.js" ></script>
+    <script type="text/javascript" src="commonJS/Geom.js" ></script>
+    <script type="text/javascript" src="commonJS/RectangleUtil.js" ></script>
+    <script type="text/javascript" src="commonJS/CanvasTextUtil.js" ></script>
+    <script type="text/javascript" src="commonJS/BitmapUtil.js" ></script>
+    <script type="text/javascript" src="commonJS/MarchingSquares.js" ></script>
+
+    <script type="text/javascript">
+
+    //========================
+    //general properties for demo set up
+    //========================
+
+    var canvas;
+    var context;
+    var canvasContainer;
+    var htmlBounds;
+    var bounds;
+    var minimumStageWidth = 250;
+    var minimumStageHeight = 250;
+    var intervalId = -1;
+    var timeoutId = -1;
+    var resizeTimeoutId = -1;
+
+    var readyStateCheckInterval = setInterval( function() {
+        if (document.readyState === "complete") {
+            clearInterval(readyStateCheckInterval);
+            init();
+        }
+    }, 10);
+
+    function init(){
+        canvas = document.createElement('canvas');
+        canvas.style.position = "absolute";
+        context = canvas.getContext("2d");
+        canvasContainer = document.getElementById("canvasContainer");
+        canvasContainer.appendChild(canvas);
+        window.onresize = resizeHandler;
+        commitResize();
+    }
+
+    function getWidth( element ){return Math.max(element.scrollWidth,element.offsetWidth,element.clientWidth );}
+    function getHeight( element ){return Math.max(element.scrollHeight,element.offsetHeight,element.clientHeight );}
+
+    //avoid running resize scripts repeatedly if a browser window is being resized by dragging
+    function resizeHandler(){
+        renderBackground();
+        clearInterval (intervalId);
+        clearTimeout (resizeTimeoutId);
+        clearTimeout (timeoutId);
+        resizeTimeoutId = setTimeout(function(){commitResize();}, 300 );
+    }
+
+    function commitResize(){
+        htmlBounds = new Sakri.Geom.Rectangle(0,0, getWidth(this.canvasContainer) , getHeight(canvasContainer));
+        if(htmlBounds.width>=800){
+            canvas.width = 800;
+            canvas.style.left = htmlBounds.getCenterX() - 400+"px";
+        }else{
+            canvas.width = htmlBounds.width;
+            canvas.style.left ="0px";
+        }
+        if(htmlBounds.height>600){
+           canvas.height = 600;
+           canvas.style.top = htmlBounds.getCenterY() - 300+"px";
+        }else{
+            canvas.height = htmlBounds.height;
+            canvas.style.top ="0px";
+        }
+        bounds = new Sakri.Geom.Rectangle(0,0, canvas.width, canvas.height);
+        console.log("commitResize() : "+bounds.toString());
+        renderBackground();
+        context.font = fontProperties.getFontString();
+        context.textBaseline = "top";
+
+        if(bounds.width<minimumStageWidth || bounds.height<minimumStageHeight){
+            stageTooSmallHandler();
+            return;
+        }
+
+        startDemo();
+    }
+
+    function stageTooSmallHandler(){
+        var warning = "Sorry, bigger screen required :(";
+        var props = new Sakri.CanvasTextProperties(null,null,24);
+        context.font = props.getFontString();
+        context.fillText(warning, bounds.getCenterX() - context.measureText(warning).width/2, bounds.getCenterY()-12);
+    }
+
+
+
+
+
+
+
+    //========================
+    //Demo specific properties
+    //========================
+
+
+    var words = ["CANVAS", "CodePen", "SAKRI", "DevState" ];
+    var currentWord;
+    var wordIndex = 0;
+    var wordBounds = new Sakri.Geom.Rectangle();
+    var wordAlpha = 0;
+
+    var bgColor = "#0c0d43";
+    var outlines;//stores outline points of characters from marching squares
+
+    var shinePoint = new Sakri.Geom.Point();
+    var shineTarget = new Sakri.Geom.Point();
+    var maxRayLength = 80;
+    var outlinePointsSkip = 4;//the effect doesn't need all the outline points, this amount gets skipped. Poor bastards.
+    var minShineSpeed = 1;
+    var maxShineSpeed = 4;
+    var shineSpeed;
+    var maxEffectDistance;
+
+    var fontProperties = new Sakri.CanvasTextProperties(Sakri.CanvasTextProperties.BOLD, null, 160);
+
+
+    function startDemo(){
+        renderBackground();
+        currentWord = words[wordIndex];
+
+        var testCanvas = document.createElement('canvas');
+        var testContext = testCanvas.getContext("2d");
+        testContext.fillStyle = "#000000";
+
+        outlines = [];
+        wordBounds.width = context.measureText(currentWord).width;
+        wordBounds.height = fontProperties.fontSize;
+        wordBounds.x = bounds.getCenterX() - wordBounds.width/2;
+        wordBounds.y = bounds.getCenterY() - fontProperties.fontSize/2;//more or less
+        maxEffectDistance = wordBounds.width/4;
+
+        var xOffset = wordBounds.x + 0;
+        var character, i, j, outlineCopy, point;
+
+        for(i=0; i<currentWord.length; i++){
+            character = currentWord.charAt(i);
+
+            testContext.font = fontProperties.getFontString();
+            testCanvas.width = testContext.measureText(character).width;
+            testCanvas.height = fontProperties.fontSize * 1.5;//times 1.5 to be safe
+
+            testContext.font = fontProperties.getFontString();
+            testContext.textBaseline = "top";
+            testContext.fillText(character,0,0);
+
+            outlines[i] = Sakri.MarchingSquares.getBlobOutlinePoints(testCanvas);
+            outlineCopy = [];
+
+            for(j=0; j<outlines[i].length; j += outlinePointsSkip){
+                point = outlines[i][j];
+                point.x += xOffset;
+                point.y += wordBounds.y;
+                outlineCopy.push(point);
+            }
+            outlines[i] = outlineCopy;
+            xOffset += testCanvas.width;
+        }
+
+        wordAlpha = 0;
+        intervalId = setInterval(fadeCurrentWordIn, 20);
+    }
+
+    function fadeCurrentWordIn(){
+        renderBackground();
+        context.globalAlpha = wordAlpha;
+        renderCurrentWord();
+        context.globalAlpha = 1;
+        wordAlpha += .05;
+        if(wordAlpha>1){
+            clearInterval(intervalId);
+            startShine();
+        }
+    }
+
+    function renderBackground(){
+        context.fillStyle = bgColor;
+        context.fillRect(0,0,bounds.width, bounds.height);
+    }
+
+    function renderCurrentWord(){
+        context.fillStyle = "#FFFFFF";
+        context.fillText(currentWord, wordBounds.x, wordBounds.y);
+        context.strokeStyle = "#FFFFFF";
+        context.lineWidth = 2;
+        context.strokeText(currentWord, wordBounds.x, wordBounds.y);
+    }
+
+    var charCenter = new Sakri.Geom.Point();
+
+    function renderCurrentWordWithShading(){
+        context.fillStyle = "#FFFFFF";
+        context.save();
+        context.shadowColor = "#FFFFFF";
+        charCenter.y = wordBounds.y+wordBounds.height/2;
+        var dist, i;
+        var xOffset = wordBounds.x;
+        for(i=0; i<currentWord.length;i++){
+            charCenter.x = xOffset + context.measureText(currentWord.charAt(i)).width/2;
+            dist = Sakri.Geom.Point.distanceBetweenTwoPoints(shinePoint, charCenter);
+            context.globalAlpha = dist > maxEffectDistance ? .05 : Sakri.MathUtil.map(dist, 0, maxEffectDistance, .9 , .2);
+            context.shadowBlur = dist > maxEffectDistance ? 1 : Sakri.MathUtil.map(dist, 0, maxEffectDistance, 25 , 5);
+            context.fillText(currentWord.charAt(i), xOffset, wordBounds.y);
+            context.strokeText(currentWord.charAt(i), xOffset, wordBounds.y);
+            xOffset += context.measureText(currentWord.charAt(i)).width;
+        }
+        context.restore();
+    }
+
+    function startShine(){
+
+        var halfCharacterBounds = new Sakri.Geom.Rectangle(wordBounds.x, wordBounds.y, wordBounds.width/2, wordBounds.height);
+        //set start and end coordinates for shinePoint and shineTarget
+        var xValues = [];
+        xValues[0] = Sakri.MathUtil.getRandomNumberInRange(wordBounds.x, wordBounds.getCenterX());
+        xValues[1] = Sakri.MathUtil.getRandomNumberInRange(wordBounds.getCenterX(), wordBounds.getRight());
+        if(xValues[1] - xValues[0] < maxEffectDistance){
+            xValues[1] += maxEffectDistance;
+        }
+
+        shinePoint.x = Math.random()>.5 ? xValues.shift() : xValues.pop();
+        shineTarget.x = xValues[0];
+
+        shinePoint.y = shineTarget.y = wordBounds.getCenterY();
+
+        shineSpeed = (shineTarget.x - shinePoint.x > 0 ? 1 : -1) * Sakri.MathUtil.getRandomNumberInRange(minShineSpeed, maxShineSpeed);
+
+        renderBackground();
+        renderCurrentWord();
+        intervalId = setInterval(updateShine, 20);
+    }
+
+
+    function updateShine(){
+        shinePoint.x += shineSpeed;
+        if(Math.abs(shineTarget.x-shinePoint.x) <= Math.abs(shineSpeed)){
+            endShine();
+            return;
+        }
+
+        context.globalAlpha = .1;
+        renderBackground();
+        context.globalAlpha = 1;
+
+        context.shadowColor = "#FFFFFF";
+
+        renderCurrentWordWithShading();
+
+        context.shadowBlur = 20;
+        context.shadowOffsetX = 0;
+        context.shadowOffsetY = 0;
+
+        for(var i=0; i<outlines.length; i++){
+            renderRaysForOutline(outlines[i]);
+        }
+        context.globalAlpha = 1;
+        context.shadowBlur = 0;
+    }
+
+    function renderRaysForOutline(outline){
+        var angle, point, i;
+        var dist = Sakri.Geom.Point.distanceBetweenTwoPoints(shinePoint, outline[0]);
+        if(dist > maxEffectDistance){
+            return;
+        }
+        context.globalAlpha = Sakri.MathUtil.map(dist, 0, maxEffectDistance, .3, .05);
+        var rayLength = Sakri.MathUtil.map(dist, 0, maxEffectDistance, maxRayLength , maxRayLength/4);
+        context.beginPath();
+        for(i=0; i<outline.length; i++){
+            point = outline[i];
+            angle = Sakri.Geom.Point.angleBetweenTwoPoints(shinePoint, point) + Math.PI;
+
+            context.moveTo(point.x, point.y);
+            context.lineTo(point.x + Math.cos(angle) * rayLength, point.y + Math.sin(angle) * rayLength);
+
+        }
+        context.closePath();
+        context.stroke();
+        //clearInterval(intervalId);
+    }
+
+    function endShine(){
+        clearInterval(intervalId);
+        wordAlpha = 1;
+        intervalId = setInterval(fadeCurrentWordOut, 20);
+    }
+
+    function fadeCurrentWordOut(){
+        renderBackground();
+        context.globalAlpha = wordAlpha;
+        renderCurrentWord();
+        context.globalAlpha = 1;
+        wordAlpha -= .05;
+        if(wordAlpha <= 0){
+            clearInterval(intervalId);
+            wordIndex++;
+            wordIndex %= words.length;
+            timeoutId = setTimeout(startDemo, 500);
+        }
+    }
+
+
+
+    </script>
+
+    <style type="text/css">
+
+        html, body{
+            margin : 0px;
+            width : 100%;
+            height : 100%;
+            overflow: hidden;
+        }
+
+        #canvasContainer{
+            margin : 0px;
+            width : 100%;
+            height : 100%;
+        }
+
+    </style>
+
+</head>
+<body>
+    <div id="canvasContainer"></div>
+</body>
+</html>
