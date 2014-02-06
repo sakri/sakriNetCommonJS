@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>CIRCULAR WANDER DEMO</title>
+
+    <script type="text/javascript" src="commonJS/MathUtil.js" ></script>
+    <script type="text/javascript" src="commonJS/Geom.js" ></script>
+    <script type="text/javascript" src="commonJS/CircularWander.js" ></script>
+    <script type="text/javascript" src="commonJS/CircularWanderExplained.js" ></script>
+
+    <script type="text/javascript">
+
+    //========================
+    //general properties for demo set up
+    //========================
+
+    var canvas;
+    var context;
+    var canvasContainer;
+    var htmlBounds;
+    var bounds;
+    var minimumStageWidth = 250;
+    var minimumStageHeight = 250;
+    var resizeTimeoutId = -1;
+
+    var readyStateCheckInterval = setInterval( function() {
+        if (document.readyState === "complete") {
+            clearInterval(readyStateCheckInterval);
+            init();
+        }
+    }, 10);
+
+    function init(){
+        canvas = document.createElement('canvas');
+        canvas.style.position = "absolute";
+        context = canvas.getContext("2d");
+        canvasContainer = document.getElementById("canvasContainer");
+        canvasContainer.appendChild(canvas);
+        window.onresize = resizeHandler;
+        commitResize();
+    }
+
+    function getWidth( element ){return Math.max(element.scrollWidth,element.offsetWidth,element.clientWidth );}
+    function getHeight( element ){return Math.max(element.scrollHeight,element.offsetHeight,element.clientHeight );}
+
+    //avoid running resize scripts repeatedly if a browser window is being resized by dragging
+    function resizeHandler(){
+        context.clearRect(0,0,canvas.width, canvas.height);
+        clearInterval(intervalId);
+        clearTimeoutsAndIntervals();
+        resizeTimeoutId = setTimeout(function(){commitResize();}, 300 );
+    }
+
+    function commitResize(){
+        htmlBounds = new Sakri.Geom.Rectangle(0,0, getWidth(this.canvasContainer) , getHeight(canvasContainer));
+        if(htmlBounds.width>=800){
+            canvas.width = 800;
+            canvas.style.left = htmlBounds.getCenterX() - 400+"px";
+        }else{
+            canvas.width = htmlBounds.width;
+            canvas.style.left ="0px";
+        }
+        if(htmlBounds.height>600){
+           canvas.height = 600;
+           canvas.style.top = htmlBounds.getCenterY() - 300+"px";
+        }else{
+            canvas.height = htmlBounds.height;
+            canvas.style.top ="0px";
+        }
+        bounds = new Sakri.Geom.Rectangle(0,0, canvas.width, canvas.height);
+        context.clearRect(0,0,canvas.width, canvas.height);
+
+        if(bounds.width < minimumStageWidth || bounds.height < minimumStageHeight){
+            stageTooSmallHandler();
+            return;
+        }
+
+        startDemo();
+    }
+
+    function stageTooSmallHandler(){
+        var warning = "Sorry, bigger screen required :(";
+        var props = new Sakri.CanvasTextProperties(null,null,24);
+        context.font = props.getFontString();
+        context.fillText(warning, bounds.getCenterX() - context.measureText(warning).width/2, bounds.getCenterY()-12);
+    }
+
+
+
+
+    //========================
+    //Demo specific properties
+    //========================
+
+
+    var circularWander;
+    var circularWanderExp;
+    var circularWanderers;
+    var wanderIntervalId = -1;
+
+    function clearTimeoutsAndIntervals(){
+        context.clearRect(0,0,canvas.width, canvas.height);
+        if(circularWanderExp){
+            circularWanderExp.stopExplaining();
+        }
+        circularWanderExp = null;
+
+        circularWander = null;
+
+        if(circularWanderers){
+            for(var i = 0; i<circularWanderers.length; i++){
+                circularWanderers[i] = null;
+            }
+        }
+        circularWanderers = null;
+
+        clearInterval(wanderIntervalId);
+    }
+
+    function startDemo(){
+        explainMode();
+    }
+
+    function explainMode(){
+        if(circularWanderExp){
+            console.log("explainMode() skip");
+            return;
+        }
+        clearTimeoutsAndIntervals();
+        circularWanderExp = new Sakri.CircularWanderExp(bounds, 4, bounds.getCenter() , context);//assume no character will be less wide than "speed"
+        circularWanderExp.maxCircleRotation = Math.PI;
+        circularWanderExp.minimumRadius = 20;
+    }
+
+    function singleMode(){
+        if(circularWander){
+            console.log("singleMode() skip");
+            return;
+        }
+        clearTimeoutsAndIntervals();
+         circularWander = new Sakri.CircularWander(bounds, 4, bounds.getCenter() , context);//assume no character will be less wide than "speed"
+        circularWander.maxCircleRotation = Math.PI;
+        circularWander.minimumRadius = 20;
+        wanderIntervalId = setInterval(updateSingleMode, 20);
+    }
+
+    function updateSingleMode(){
+        circularWander.update();
+        //render current position
+        context.globalAlpha = .1;
+        context.fillStyle = "#FFFFFF";
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        context.globalAlpha = 1;
+        context.fillStyle = "#FF0000";
+        context.beginPath();
+        context.arc(circularWander.position.x, circularWander.position.y, 10, 0, Sakri.MathUtil.PI2);
+        context.closePath();
+        context.fill();
+    }
+
+    function getWanderColor(base){
+        return base - 15 + Math.floor(Math.random()*30);
+    }
+
+    function manyMode(){
+        if(circularWanderers){
+            console.log("manyMode() skip");
+        }
+        clearTimeoutsAndIntervals();
+        var p = bounds.getCenter();
+        circularWanderers = [];
+        var r = Sakri.MathUtil.getRandomIntegerInRange(100, 200);
+        var g = Sakri.MathUtil.getRandomIntegerInRange(100, 200);
+        var b = Sakri.MathUtil.getRandomIntegerInRange(100, 200);
+        for(var i = 0; i < 50; i++){
+            circularWanderers[i] = new Sakri.CircularWander(bounds, 4,  p);//assume no character will be less wide than "speed"
+            circularWanderers[i].maxCircleRotation = Math.PI;
+            circularWanderers[i].minimumRadius = 20;
+            circularWanderers[i].color = Sakri.MathUtil.rgbToHex( getWanderColor(b), getWanderColor(g), getWanderColor(b) );
+            circularWanderers[i].renderRadius = 1 + Math.round(Math.random() * 25);
+        }
+        wanderIntervalId = setInterval(updateManyMode, 20);
+    }
+
+    function updateManyMode(){
+        context.globalAlpha = .1;
+        context.fillStyle = "#FFFFFF";
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        context.globalAlpha = 1;
+
+
+        var wander, i;
+        for(i = 0; i < circularWanderers.length; i++){
+            context.beginPath();
+            wander = circularWanderers[i];
+            wander.update();
+            context.fillStyle = wander.color;
+            context.arc(wander.position.x, wander.position.y, wander.renderRadius, 0, Sakri.MathUtil.PI2);
+            context.closePath();
+            context.fill();
+        }
+
+    }
+
+
+    </script>
+
+    <style type="text/css">
+
+        html, body{
+            margin : 0px;
+            width : 100%;
+            height : 100%;
+            overflow: hidden;
+            background-color: #FFFFFF;
+        }
+
+        #canvasContainer{
+            margin : 0px;
+            width : 100%;
+            height : 100%;
+        }
+
+        #buttons{
+            position: absolute;
+            bottom: 40px;
+            left: 40px;
+        }
+
+    </style>
+
+</head>
+<body>
+    <div id="canvasContainer"></div>
+    <div id="buttons">
+        <button type="button"  onclick="explainMode()" >Explanation</button>
+        <button type="button" onclick="singleMode()" >See one</button>
+        <button type="button" onclick="manyMode()" >See many</button>
+    </div>
+</body>
+</html>
