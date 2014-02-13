@@ -26,7 +26,7 @@
     Sakri.BitmapUtil.getFirstNonTransparentPixelBottomUp = function(canvas){
         var context = canvas.getContext("2d");
         var y, i, rowData;
-        for(y = canvas.height-1; y>-1; y--){
+        for(y = canvas.height - 1; y>-1; y--){
             rowData = context.getImageData(0, y, canvas.width, 1).data;
             for(i=0; i<rowData.length; i+=4){
                 if(rowData[i+0] + rowData[i+1] + rowData[i+2] + rowData[i+3] > 0){

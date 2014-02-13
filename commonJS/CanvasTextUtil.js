@@ -1,6 +1,9 @@
 /**
  * Created by sakri on 27-1-14.
+ * has a dependecy on Sakri.Geom
+ * has a dependecy on Sakri.BitmapUtil
  */
+
 (function (window){
 
     var Sakri = window.Sakri || {};
@@ -8,34 +11,46 @@
 
     Sakri.CanvasTextUtil = {};
 
+    Sakri.CanvasTextUtil.resizeCanvasToString = function(canvas, string, fontProps){
+        var context = canvas.getContext('2d');
+
+        context.font = fontProps.getFontString();
+        context.textBaseline = "top";
+
+        var textWidth = context.measureText(string).width;
+        canvas.width = textWidth;
+        canvas.height = fontProps.fontSize * 1.5;//normally descenders shouldn't go below this
+
+        //after a resize of a canvas, we have to reset these properties
+        context.font =  fontProps.getFontString();
+        context.textBaseline = "top";
+        context.fillStyle = "#FF0000";
+        context.fillText(string, 0, 0);
+
+        var textHeight = Sakri.BitmapUtil.getFirstNonTransparentPixelBottomUp(canvas).y;//this returns a point
+        canvas.width = textWidth;
+        canvas.height = textHeight;
+    }
 
     //this method renders text into a canvas, then resizes the image by shrinkPercent
     //loops through the non transparent pixels of the resized image and returns those as an array
     //fontProperties should be an object of type Sakri.CanvasTextProperties
     Sakri.CanvasTextUtil.createTextParticles = function(text, shrinkPercent, fontProps){
-        var renderCanvas = document.createElement('canvas');
-        var renderContext = renderCanvas.getContext('2d');
-
-        var fontString = fontProperties.getFontString();
-        //console.log(fontString);
-        renderContext.font = fontString;
-        renderContext.textBaseline = "top";
-        //console.log(renderContext.measureText(text).width);
-        renderCanvas.width = renderContext.measureText(text).width;
-        renderCanvas.height = fontProps.fontSize + 10;//TODO : Need to implement getFirstNonTransparentPixel()
+        var canvas = document.createElement('canvas');
+        Sakri.CanvasTextUtil.resizeCanvasToString(canvas, text, fontProps);
+        var context = canvas.getContext('2d');
 
         //after a resize of a canvas, we have to reset these properties
-        renderContext.font =  fontString;
-        renderContext.textBaseline = "top";
-        //console.log(renderCanvas.width, renderCanvas.height);
-        renderContext.fillStyle = "#FF0000";
-        renderContext.fillText(text, 0, 0);
+        context.font =  fontProps.getFontString();;
+        context.textBaseline = "top";
+        context.fillStyle = "#FF0000";
+        context.fillText(text, 0, 0);
 
         var shrunkenCanvas = document.createElement('canvas');
-        shrunkenCanvas.width = Math.round(renderCanvas.width*shrinkPercent);
-        shrunkenCanvas.height = Math.round(renderCanvas.height*shrinkPercent);
+        shrunkenCanvas.width = Math.round(canvas.width * shrinkPercent);
+        shrunkenCanvas.height = Math.round(canvas.height * shrinkPercent);
         var shrunkenContext = shrunkenCanvas.getContext('2d');
-        shrunkenContext.drawImage(renderCanvas, 0, 0, shrunkenCanvas.width , shrunkenCanvas.height  );
+        shrunkenContext.drawImage(canvas, 0, 0, shrunkenCanvas.width , shrunkenCanvas.height  );
 
         var pixels = shrunkenContext.getImageData(0, 0, shrunkenCanvas.width, shrunkenCanvas.height);
         var data = pixels.data;
@@ -48,7 +63,7 @@
                 particles.push(new Sakri.Geom.Point(x, y));
             }
         }
-        delete renderCanvas;
+        delete canvas;//not sure if necessary?!
         delete shrunkenCanvas;
         return particles;
     };
@@ -58,18 +73,14 @@
         var fontString = fontProps.getFontString();
         var characters = string.split("");
         var images = [];
-        var canvas, context, image, metrics, i,character;
-        canvas = document.createElement("canvas");
+        var context, image, metrics, i, character;
+        var canvas = document.createElement("canvas");
 
         for(i=0; i<characters.length; i++){
             character = characters[i];
 
+            Sakri.CanvasTextUtil.resizeCanvasToString(canvas, character, fontProps);
             context = canvas.getContext("2d");
-            context.textBaseline = "top";
-            context.font = fontString;
-            metrics = context.measureText(character);
-            canvas.width = metrics.width;
-            canvas.height = fontProps.fontSize;// TODO : use getFirstNonTransparentPixel for dynamic sizing
 
             //these properties have to be set twice as they vanish after setting a canvas width and height
             context = canvas.getContext("2d");
@@ -97,6 +108,44 @@
         return images;
     };
 
+
+    //TODO: implement
+    Sakri.CanvasTextUtil.fitTextIntoRect = function(string, fontProps, rect, canvas, fillStyle){
+        if(!canvas){
+            var canvas = document.createElement("canvas");
+        }
+        if(!fillStyle){
+            fillStyle = "#000000";
+        }
+        var context = canvas.getContext('2d');
+        context.font = fontProps.getFontString();
+        context.textBaseline = "top";
+
+        var fontSize = fontProps.fontSize;
+        context.font = "bold "+fontSize+"px sans-serif";
+        var width = context.measureText(string).width;
+        if(width < context.width){
+            while(context.measureText(string).width < rect.width && rect < bounds.height){
+                fontSize++;
+                context.font = "bold "+fontSize+"px sans-serif";
+            }
+        }else if(width > context.width){
+            while(context.measureText(string).width > rect.width && rect > bounds.height){
+                fontSize--;
+                context.font = "bold "+fontSize+"px sans-serif";
+            }
+        }
+
+        canvas.width = context.measureText(string).width;
+        canvas.height = fontSize * 1.5;//1.5 should be enough to cover all descenders
+        context.font = "bold "+fontSize+"px sans-serif";
+        context.textBaseline = "top";
+        context.fillStyle = fillStyle;
+        context.fillText(string, 0,0);
+
+        return Sakri.BitmapUtil.createTrimmedCanvas(canvas);
+
+    }
 
     //=========================================================================================
     //==============::CANVAS TEXT PROPERTIES::====================================

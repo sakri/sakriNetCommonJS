@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SNOWMAN TEXT DEMO</title>
+
+    <script type="text/javascript" src="commonJS/MathUtil.js" ></script>
+    <script type="text/javascript" src="commonJS/Geom.js" ></script>
+    <script type="text/javascript" src="commonJS/BitmapUtil.js" ></script>
+    <script type="text/javascript" src="commonJS/CanvasTextUtil.js" ></script>
+    <script type="text/javascript" src="commonJS/CircularWander.js" ></script>
+
+    <script type="text/javascript">
+
+//========================
+//general properties for demo set up
+//========================
+
+var canvas;
+var context;
+var canvasContainer;
+var bounds;
+var minimumStageWidth = 250;
+var minimumStageHeight = 250;
+var resizeTimeoutId = -1;
+
+var readyStateCheckInterval = setInterval( function() {
+    if (document.readyState === "complete") {
+        clearInterval(readyStateCheckInterval);
+        init();
+    }
+}, 10);
+
+function init(){
+    canvasContainer = document.getElementById("canvasContainer");
+    window.onresize = resizeHandler;
+    commitResize();
+}
+
+function getWidth( element ){return Math.max(element.scrollWidth,element.offsetWidth,element.clientWidth );}
+function getHeight( element ){return Math.max(element.scrollHeight,element.offsetHeight,element.clientHeight );}
+
+//avoid running resize scripts repeatedly if a browser window is being resized by dragging
+function resizeHandler(){
+    if(canvas){
+        canvasContainer.removeChild(canvas);
+    }
+    context.clearRect(0,0,canvas.width, canvas.height);
+    clearTimeoutsAndIntervals();
+    resizeTimeoutId = setTimeout(function(){commitResize();}, 300 );
+}
+
+function commitResize(){
+    canvas = document.createElement('canvas');
+    canvas.style.position = "absolute";
+    context = canvas.getContext("2d");
+    canvasContainer.appendChild(canvas);
+
+    bounds = new Sakri.Geom.Rectangle(0,0, getWidth(canvasContainer) , getHeight(canvasContainer));
+    canvas.width = bounds.width;
+    canvas.height = bounds.height;
+
+    if(bounds.width<minimumStageWidth || bounds.height<minimumStageHeight){
+        stageTooSmallHandler();
+        return;
+    }
+
+    startDemo();
+}
+
+function stageTooSmallHandler(){
+    var warning = "Sorry, bigger screen required :(";
+    context.font = "bold normal 24px sans-serif";
+    context.fillText(warning, bounds.getCenterX() - context.measureText(warning).width/2, bounds.getCenterY()-12);
+}
+
+
+
+
+//========================
+//Demo specific properties
+//========================
+
+
+function clearTimeoutsAndIntervals(){
+    clearInterval(intervalId);
+}
+
+var circleFinder;
+var characters;
+var maxCharacters = 12;
+var currentWord = "SAKRI";
+var intervalId = -1;
+var speed = .05;
+var fontProperties = new Sakri.CanvasTextProperties(Sakri.CanvasTextProperties.BOLD, null, 160);
+
+var colors = ["#698384", "#841118", "#c26c2e", "#517c24", "#cca835", "#166586", "#9ba78c", "#b68679"];
+
+
+function startDemo(){
+    characters = [];
+    var char, i;
+    var size = bounds.width/currentWord.length;
+    var boxRect = new Sakri.Geom.Rectangle(0, bounds.getCenterY()-size/2, size, size);
+    if(size > bounds.height){
+        size = bounds.height;
+        boxRect.x = bounds.getCenterX() - (currentWord.length * size) / 2;
+    }
+    var margin = boxRect.width * .025;
+    var marginRect = boxRect.clone();
+    marginRect.x = margin;
+    marginRect.y = margin;
+    marginRect.width -= margin*2;
+    marginRect.height -= margin*2;
+    var charRect;
+    for(i=0; i < currentWord.length; i++){
+        char = currentWord.charAt(i);
+        charRect = new Sakri.Geom.Rectangle(boxRect.x+marginRect.x, boxRect.y+marginRect.y, marginRect.width, marginRect.height);
+        characters[i] = new SnowmanTextCharacter(char, fontProperties, charRect, .3);
+        characters[i].currentAngle = .1;//TODO: investigate why a starting angle of 0 throws an error?!
+        //characters[i].color = Sakri.MathUtil.getRandomHexColorString();
+        characters[i].color = colors[i%colors.length];
+        characters[i].characterCanvas = Sakri.CanvasTextUtil.fitTextIntoRect(char, fontProperties, charRect, null, characters[i].color);
+        characters[i].characterCanvasDark = Sakri.CanvasTextUtil.fitTextIntoRect(char, fontProperties, charRect, null);
+        context.fillStyle = characters[i].color;
+        //context.drawImage(characters[i].characterCanvas, boxRect.x, boxRect.y);
+        boxRect.x += boxRect.width;
+    }
+    circleFinder = new Sakri.LargestCircleInBoundsForRadiusFinder();
+
+    var textInputSpan = document.getElementById("textInputSpan");
+    textInputSpan.style.top = (boxRect.y + boxRect.height + 10)+"px";
+    textInputSpan.style.left = (bounds.getCenterX() - getWidth(textInputSpan)/2)+"px";
+
+    intervalId = setInterval(update, 20);
+}
+
+function update(){
+    var i, char;
+    this.context.clearRect(0,0,canvas.width, canvas.height);
+    for(i=0; i < characters.length; i++){
+        char = characters[i];
+        renderCharacter(char);
+        char.setAngle(char.currentAngle, circleFinder);
+        renderCharacter(char);
+        char.currentAngle += speed;
+        char.currentAngle = Sakri.MathUtil.constrainRadianTo2PI(char.currentAngle);
+    }
+}
+
+var characterRenderRect = new Sakri.Geom.Rectangle();
+var charRectRadius = 0;
+var charRectAngle = 0;
+
+function renderCharacter(char){
+    this.context.fillStyle = char.color;
+    this.context.fillRect(char.characterRect.x, char.characterRect.y, char.characterRect.width, char.characterRect.height);
+    this.context.beginPath();
+    this.context.fillStyle = "#FFFFFF";
+    this.context.arc(char.circleA.x, char.circleA.y, char.circleA.radius * 1.05, 0, Sakri.MathUtil.PI2);
+    this.context.moveTo(char.circleB.x, char.circleB.y);
+    this.context.arc(char.circleB.x, char.circleB.y, char.circleB.radius * 1.05, 0, Sakri.MathUtil.PI2);
+    this.context.closePath();
+    this.context.fill();
+
+    characterRenderRect.width = char.characterCanvas.width/2;
+    characterRenderRect.height = char.characterCanvas.height/2;
+
+    charRectAngle = Math.atan2(-characterRenderRect.height, -characterRenderRect.width);
+
+    renderCharacterToCircle(char, char.circleA, characterRenderRect, charRectAngle, char.circleA.radius > char.circleB.radius);
+    renderCharacterToCircle(char, char.circleB, characterRenderRect, charRectAngle, char.circleB.radius > char.circleA.radius);
+
+    /*
+    context.fillStyle = "#FF0000";
+    context.fillRect(char.line.pointA.x, char.line.pointA.y, 10, 10);
+    context.fillStyle = "#00FF00";
+    context.fillRect(char.line.pointB.x, char.line.pointB.y, 10, 10);
+    */
+}
+
+function renderCharacterToCircle(char, circle, rect, angle, useDark){
+    rect.x = circle.x + Math.cos(angle) * circle.radius;
+    rect.y = circle.y + Math.sin(angle) * circle.radius;
+    rect.width = (circle.x + Math.cos(angle+Math.PI) * circle.radius) - rect.x;
+    rect.height = (circle.y + Math.sin(angle+Math.PI) * circle.radius) - rect.y;
+
+    this.context.drawImage(useDark ? char.characterCanvasDark : char.characterCanvas, rect.x, rect.y, rect.width, rect.height);
+}
+
+
+//========================
+//SnowmanTextCharacter
+//========================
+(function (window){
+
+    var SnowmanTextCharacter = function(character, fontProps, characterRect, yCenterNormal){
+        this.characterRect = characterRect;
+        this.circleA = new Sakri.Geom.Circle();
+        this.circleB = new Sakri.Geom.Circle();
+        this.middlePoint = new Sakri.Geom.Point(characterRect.getCenterX(), characterRect.y + characterRect.height * yCenterNormal);
+        this.lineRadius = Math.min(this.middlePoint.y-characterRect.y, characterRect.getBottom()-this.middlePoint.y)/2;
+        this.line = new Sakri.Geom.Line(null, this.middlePoint);
+    };
+
+    //finder is of type Sakri.LargestCircleInBoundsForRadiusFinder (not the best design, lazyness)
+    SnowmanTextCharacter.prototype.setAngle = function(angle, finder){
+        this.line.pointA.x = this.middlePoint.x + Math.cos(angle + Math.PI) * this.lineRadius;
+        this.line.pointA.y = this.middlePoint.y + Math.sin(angle + Math.PI) * this.lineRadius;
+        this.line.updateLineProperties();
+
+        /*
+        console.log("SnowmanTextCharacter.setAngle()");
+        console.log("this.characterRect", this.characterRect.toString());
+        console.log("this.circleA", this.circleA.toString());
+        console.log("this.circleB", this.circleB.toString());
+        console.log("this.middlePoint", this.middlePoint.toString());
+        console.log("this.lineRadius", this.lineRadius.toString());
+        console.log("this.line", this.line.toString());
+        */
+        finder.setCircleOptions(this.characterRect, this.line, angle, this.circleA, this.circleB);
+    }
+
+    window.SnowmanTextCharacter = SnowmanTextCharacter;
+
+}(window));
+
+
+function changeText(){
+    var textInput = document.getElementById("textInput");
+    if(textInput.value && textInput.text!=""){
+        if(textInput.value.length > maxCharacters){
+            alert("Sorry, there is only room for "+maxCharacters+" characters. Try a shorter name.");
+            return;
+        }
+        if(textInput.value.indexOf(" ")>-1){
+            alert("Sorry, no support for spaces right now :(");
+            return;
+        }
+        currentWord = textInput.value;
+        clearTimeoutsAndIntervals();
+        console.log("BOOOH");
+        startDemo();
+    }
+}
+
+    </script>
+
+    <style type="text/css">
+
+        html, body{
+            margin : 0px;
+            width : 100%;
+            height : 100%;
+            overflow: hidden;
+            background-color: #FFFFFF;
+        }
+
+        #canvasContainer{
+            margin : 0px;
+            width : 100%;
+            height : 100%;
+        }
+
+        #textInputSpan{
+            position: absolute;
+        }
+
+    </style>
+
+</head>
+<body>
+    <div id="canvasContainer"></div>
+    <span id="textInputSpan">
+        Enter your name (max 12 chars) :
+        <input id="textInput" maxlength="12" type="text" width="150" />
+        <button onclick="changeText()">GO!</button>
+    </span>
+</body>
+</html>

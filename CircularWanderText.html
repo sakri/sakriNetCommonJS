@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>MARCH AND SHINE</title>
+
+    <script type="text/javascript" src="commonJS/MathUtil.js" ></script>
+    <script type="text/javascript" src="commonJS/Geom.js" ></script>
+    <script type="text/javascript" src="commonJS/CircularWander.js" ></script>
+
+    <script type="text/javascript">
+
+    //========================
+    //general properties for demo set up
+    //========================
+
+    var canvas;
+    var context;
+    var canvasContainer;
+    var htmlBounds;
+    var bounds;
+    var minimumStageWidth = 800;
+    var minimumStageHeight = 400;
+    var resizeTimeoutId = -1;
+
+    var readyStateCheckInterval = setInterval( function() {
+        if (document.readyState === "complete") {
+            clearInterval(readyStateCheckInterval);
+            init();
+        }
+    }, 10);
+
+    function init(){
+        canvas = document.createElement('canvas');
+        canvas.style.position = "absolute";
+        context = canvas.getContext("2d");
+        canvasContainer = document.getElementById("canvasContainer");
+        canvasContainer.appendChild(canvas);
+        window.onresize = resizeHandler;
+        commitResize();
+    }
+
+    function getWidth( element ){return Math.max(element.scrollWidth,element.offsetWidth,element.clientWidth );}
+    function getHeight( element ){return Math.max(element.scrollHeight,element.offsetHeight,element.clientHeight );}
+
+    //avoid running resize scripts repeatedly if a browser window is being resized by dragging
+    function resizeHandler(){
+        context.clearRect(0,0,canvas.width, canvas.height);
+        clearInterval (intervalId);
+        clearTimeoutsAndIntervals();
+        resizeTimeoutId = setTimeout(function(){commitResize();}, 300 );
+    }
+
+    function commitResize(){
+        bounds = new Sakri.Geom.Rectangle(0,0, getWidth(this.canvasContainer) , getHeight(canvasContainer));
+        canvas.width = bounds.width;
+        canvas.height = bounds.height;
+        context.clearRect(0,0,canvas.width, canvas.height);
+
+        textWandererProps = [
+            {fontSize:15, fontHeight:12, speed: 13},
+            {fontSize:15, fontHeight:12, speed: 13},
+            {fontSize:15, fontHeight:12, speed: 13},
+            {fontSize:25, fontHeight:21, speed: 20},
+            {fontSize:25, fontHeight:21, speed: 20},
+            {fontSize:35, fontHeight:26, speed: 27}
+        ];
+
+        if(canvas.height > 250 && canvas.width>600){
+            textWandererProps.push({fontSize:45, fontHeight:32, speed: 34});
+            textWandererProps.push({fontSize:55, fontHeight:42, speed: 44});
+        }
+
+        if(canvas.height > 400 && canvas.width>800){
+            textWandererProps.push({fontSize:65, fontHeight:52, speed: 54});
+        }
+
+        startDemo();
+    }
+
+
+
+
+    //========================
+    //Demo specific properties
+    //========================
+
+
+    function clearTimeoutsAndIntervals(){
+        clearInterval(intervalId);
+    }
+
+    var wanderers;
+    var intervalId = -1;
+    var sourceCanvas;
+    var sourceContext;
+    var currentWord = "SAKRI" ;
+    var wanderText = "SAKRI DEVSTATE CODEPEN CANVAS ";
+
+    var wandererColors = [ "#070720", "#0b0b2e", "#0f0f38", "#262994"];//"#03030f",
+
+    var textWandererProps;
+
+
+    function startDemo(){
+        context.textBaseline = "top";
+        showNextWord();
+    }
+
+    function showNextWord(){
+
+        renderBG();
+        renderSourceText();
+        setCharacterMetrics();
+        createWanderers();
+
+        context.shadowColor = '#000000';
+        context.shadowBlur = 2;
+        context.shadowOffsetX = 1;
+        context.shadowOffsetY = 1;
+
+        context.textBaseline = "top";
+        context.textAlign = "left";
+
+        intervalId = setInterval(updateParticles, 20);
+    }
+
+    function renderSourceText(){
+        if(!sourceCanvas){
+            sourceCanvas = document.createElement("canvas");
+        }
+        sourceCanvas.width = bounds.width;
+        sourceCanvas.height = bounds.height;
+        sourceContext = sourceCanvas.getContext("2d");
+
+        var wordBounds = bounds.clone();
+        var margin = bounds.width * .05;
+        wordBounds.x += margin;
+        wordBounds.width -= margin*2;
+        var fontSize = 50;
+        sourceContext.font = "bold "+fontSize+"px sans-serif";
+        while(sourceContext.measureText(currentWord).width < wordBounds.width && fontSize < bounds.height){
+            fontSize++;
+            sourceContext.font = "bold "+fontSize+"px sans-serif";
+        }
+
+        wordBounds.y = bounds.getCenterY() - fontSize/2;
+        wordBounds.width = sourceContext.measureText(currentWord).width;
+        var textGradient = context.createLinearGradient(wordBounds.x, wordBounds.y, wordBounds.x, wordBounds.getBottom() );
+        textGradient.addColorStop(0, "#dc400f");
+        textGradient.addColorStop(1, "#ff9c2c");
+        sourceContext.fillStyle = textGradient;
+        sourceContext.textBaseline = "top";
+
+        sourceContext.fillText(currentWord, bounds.getCenterY() - wordBounds.width/2 , bounds.getCenterY() - fontSize/2);
+        //sourceContext.strokeStyle = "#FFFFFF";
+        //sourceContext.strokeText(currentWord, wordBounds.x, bounds.getCenterY() - fontSize/2);
+
+    }
+
+    function createWanderers(){
+        wanderers=[];
+        var props, i;
+        var center = bounds.getCenter();
+        for(i=0; i < 30; i++){
+            props = textWandererProps[i%textWandererProps.length];
+            wanderers[i] = new Sakri.CircularWander(bounds, 4, center);//assume no character will be less wide than "speed"
+            wanderers[i].maxCircleRotation = Math.PI;
+            wanderers[i].minimumRadius = props.fontSize*1.5;
+            wanderers[i].fontSize = props.fontSize;
+            wanderers[i].fontHeight = props.fontHeight;
+            wanderers[i].color = wandererColors[i%wandererColors.length];
+            wanderers[i].charMetrics = props.charMetrics;
+            wanderers[i].distanceTravelled = 0;
+            wanderers[i].currentCharacterIndex = 0;
+            wanderers[i].nextTravelTarget = 0;
+        }
+    }
+
+    function renderBG(){
+        var bgGradient = context.createRadialGradient(bounds.getCenterX(),bounds.getCenterY(),bounds.height/8,bounds.getCenterX(),bounds.getCenterY(),bounds.height/1.5);
+        bgGradient.addColorStop(0,"#2225a8");
+        bgGradient.addColorStop(1,"#020315");
+
+        context.fillStyle = bgGradient;//"#000000";
+        context.fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
+    }
+
+    function setCharacterMetrics(){
+        var metrics, i, j, char;
+        for(i = 0; i < textWandererProps.length; i++){
+            textWandererProps[i].charMetrics = [];
+            context.font = "bold "+textWandererProps[i].fontSize+"px sans-serif";
+            for(j=0;j<wanderText.length;j++){
+                metrics = context.measureText(wanderText.charAt(j));
+                textWandererProps[i].charMetrics[j] = metrics.width;
+            }
+        }
+    }
+
+    function updateParticles(){
+        for(var i=0; i<wanderers.length; i++){
+            updateWanderer(wanderers[i]);
+        }
+    }
+
+    function updateWanderer(wanderer){
+        wanderer.update();
+
+        wanderer.distanceTravelled += Math.abs(wanderer.speed);
+
+        if(wanderer.distanceTravelled <= wanderer.nextTravelTarget){
+            return;
+        }
+
+        var pixel = sourceContext.getImageData(wanderer.position.x, wanderer.position.y, 1, 1).data;//could offset this a bit towards center of character?
+        var style  = Sakri.MathUtil.rgbToHex(pixel[0], pixel[1], pixel[2]);
+        style = style.toUpperCase()=="#000000" || (pixel[0] + pixel[1] + pixel[2] < 100) ? wanderer.color : style;
+
+        context.save();
+        var character = wanderText.charAt(wanderer.currentCharacterIndex);
+        wanderer.nextTravelTarget = wanderer.charMetrics[wanderer.currentCharacterIndex];
+
+        wanderer.currentCharacterIndex++;
+        wanderer.currentCharacterIndex %= wanderText.length;
+        wanderer.distanceTravelled = 0;
+
+        context.fillStyle = style;
+
+        var radius = wanderer.currentCircle.radius + (wanderer.speed>0 ? wanderer.fontHeight : -wanderer.fontHeight)/2;
+        var fontX = wanderer.currentCircle.x + Math.cos(wanderer.currentRadian)*radius;
+        var fontY = wanderer.currentCircle.y + Math.sin(wanderer.currentRadian)*radius;
+
+        context.translate(fontX,fontY);
+        context.rotate(wanderer.currentRadian+(wanderer.speed>0 ? -Sakri.MathUtil.PI_AND_HALF : Sakri.MathUtil.PI_AND_HALF));
+        context.font = "bold "+wanderer.fontSize+"px sans-serif";
+
+        context.fillText (character,0,0)
+        context.restore();
+    }
+
+    </script>
+
+    <style type="text/css">
+
+        html, body{
+            margin : 0px;
+            width : 100%;
+            height : 100%;
+            overflow: hidden;
+            background-color: #FFFFFF;
+        }
+
+        #canvasContainer{
+            margin : 0px;
+            width : 100%;
+            height : 100%;
+        }
+
+    </style>
+
+</head>
+<body>
+    <div id="canvasContainer"></div>
+</body>
+</html>

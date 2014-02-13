@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>MARCH AND SHINE</title>
+
+    <script type="text/javascript" src="commonJS/MathUtil.js" ></script>
+    <script type="text/javascript" src="commonJS/Geom.js" ></script>
+    <script type="text/javascript" src="commonJS/CircularWander.js" ></script>
+
+    <script type="text/javascript">
+
+//========================
+//general properties for demo set up
+//========================
+
+var canvas;
+var context;
+var canvasContainer;
+var bounds;
+var minimumStageWidth = 250;
+var minimumStageHeight = 250;
+var resizeTimeoutId = -1;
+
+var readyStateCheckInterval = setInterval( function() {
+    if (document.readyState === "complete") {
+        clearInterval(readyStateCheckInterval);
+        init();
+    }
+}, 10);
+
+function init(){
+    canvasContainer = document.getElementById("canvasContainer");
+    window.onresize = resizeHandler;
+    commitResize();
+}
+
+function getWidth( element ){return Math.max(element.scrollWidth,element.offsetWidth,element.clientWidth );}
+function getHeight( element ){return Math.max(element.scrollHeight,element.offsetHeight,element.clientHeight );}
+
+//avoid running resize scripts repeatedly if a browser window is being resized by dragging
+function resizeHandler(){
+    context.clearRect(0,0,canvas.width, canvas.height);
+    clearInterval (intervalId);
+    clearTimeoutsAndIntervals();
+    resizeTimeoutId = setTimeout(function(){commitResize();}, 300 );
+}
+
+function commitResize(){
+    if(canvas){
+        canvasContainer.removeChild(canvas);
+    }
+    canvas = document.createElement('canvas');
+    canvas.style.position = "absolute";
+    context = canvas.getContext("2d");
+    canvasContainer.appendChild(canvas);
+
+    bounds = new Sakri.Geom.Rectangle(0,0, getWidth(canvasContainer) , getHeight(canvasContainer));
+    canvas.width = bounds.width;
+    canvas.height = bounds.height;
+
+    if(bounds.width<minimumStageWidth || bounds.height<minimumStageHeight){
+        stageTooSmallHandler();
+        return;
+    }
+
+    startDemo();
+}
+
+function stageTooSmallHandler(){
+    var warning = "Sorry, bigger screen required :(";
+    context.font = "bold normal 24px sans-serif";
+    context.fillText(warning, bounds.getCenterX() - context.measureText(warning).width/2, bounds.getCenterY()-12);
+}
+
+
+
+
+//========================
+//Demo specific properties
+//========================
+
+
+function clearTimeoutsAndIntervals(){
+
+}
+
+function startDemo(){
+
+}
+
+
+
+
+    </script>
+
+    <style type="text/css">
+
+        html, body{
+            margin : 0px;
+            width : 100%;
+            height : 100%;
+            overflow: hidden;
+            background-color: #FFFFFF;
+        }
+
+        #canvasContainer{
+            margin : 0px;
+            width : 100%;
+            height : 100%;
+        }
+
+    </style>
+
+</head>
+<body>
+<div id="canvasContainer"></div>
+</body>
+</html>

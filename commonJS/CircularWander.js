@@ -19,13 +19,27 @@
         this.updates = 0;//current number of "moves"
         this.bounds = bounds;
         this.speed = speed;
-        this.currentCircle = new Sakri.Geom.Circle(startingPoint.x, startingPoint.y, this.minimumRadius);//TODO: random starting point ensuring circle is within bounds
-        this.currentRadian = Math.random() * Sakri.MathUtil.PI2; // TODO: rename, not immediately clear what the purpose of this property is?
-        this.position = new Sakri.Geom.Point(startingPoint.x, startingPoint.y);
+        this.validateStartingPoint(startingPoint);
+        this.setStartCircle();
         this.radiusLine = new Sakri.Geom.Line();//used for creating circles
-        this.circleFinder = new Sakri.LargestCircleInBoundsForRadiusFinder();
+        this.circleFinder = new Sakri.LargestCircleInBoundsForRadiusFinder();//TODO make LargestCircleInBoundsForRadiusFinder a "static" class
         this.setNextChangeTarget();
     };
+
+    Sakri.CircularWander.prototype.validateStartingPoint = function(startingPoint){
+        if(!startingPoint || !this.bounds.containsPoint(startingPoint)){
+            this.position = this.bounds.getCenter();
+            return;
+        }
+        this.position = new Sakri.Geom.Point(startingPoint.x, startingPoint.y);
+    }
+
+    Sakri.CircularWander.prototype.setStartCircle = function(){
+        this.currentRadian = Math.random() * Sakri.MathUtil.PI2;
+        this.currentCircle = new Sakri.Geom.Circle(0, 0, this.minimumRadius);
+        this.currentCircle.x = this.position.x + Math.cos(this.currentRadian+Math.PI) * this.minimumRadius;
+        this.currentCircle.y = this.position.y + Math.sin(this.currentRadian+Math.PI) * this.minimumRadius;
+    }
 
     Sakri.CircularWander.prototype.update = function(){
         this.currentRadian += this.updateAngleIncrement;
@@ -60,19 +74,16 @@
         //determine direction
         if(!nextCircle.containsPoint(this.currentCircle) && !this.currentCircle.containsPoint(nextCircle)){
             this.speed *= -1;
-            this.currentRadian -= Math.PI;
-            this.currentRadian = Sakri.MathUtil.constrainRadianTo2PI(this.currentRadian);
+            this.currentRadian = Sakri.MathUtil.constrainRadianTo2PI(this.currentRadian - Math.PI);
         }
 
         //set to a random size within the circle
         nextCircle.radius = Sakri.MathUtil.getRandomNumberInRange(this.minimumRadius, nextCircle.radius);
-        //var angle = Math.atan2( this.position.y - nextCircle.y, this.position.x - nextCircle.x );
-        var angle = Math.atan2( nextCircle.y-this.position.y, nextCircle.x - this.position.x );
-        nextCircle.x = this.position.x + Math.cos(angle)*nextCircle.radius;
-        nextCircle.y = this.position.y + Math.sin(angle)*nextCircle.radius;
+        var angle = Math.atan2( nextCircle.y - this.position.y, nextCircle.x - this.position.x );
+        nextCircle.x = this.position.x + Math.cos(angle) * nextCircle.radius;
+        nextCircle.y = this.position.y + Math.sin(angle) * nextCircle.radius;
 
         this.currentCircle.update(nextCircle.x, nextCircle.y, nextCircle.radius);
-
         this.setNextChangeTarget();
     };
 
@@ -84,7 +95,6 @@
         this.updatesBeforeNextCircle = Math.ceil(totalDist / Math.abs(this.speed));//number of moves before switching circles, TODO rename
         this.updateAngleIncrement = (moveDistance / this.updatesBeforeNextCircle) * (this.speed > 0 ? 1 : -1);
         this.updates = 0;
-        //console.log("CircularWander.setNextChangeTarget" , circumference, moveDistance, totalDist, this.updatesBeforeNextCircle, this.updateAngleIncrement);
     };
 
 
@@ -104,6 +114,7 @@
         this.baseRadian = 0;//angle of isosceles triangle base line, used to calculate intersection with a boundary wall
         this.candidateDiameter = 0;//diameter of maximum size circle between "point" and a wall
         this.smaller = 0;
+        this.reduceResultBy = .95;
     };
 
     Sakri.LargestCircleInBoundsForRadiusFinder.prototype.findLargestFittingCircle = function(bounds, radiusLine, radian){
@@ -244,8 +255,8 @@
                 break;
         }
 
-        this.candidateCircleA.radius *= .95;//small margin to make sure the circle doesn't exceed borders
-        this.candidateCircleB.radius *= .95;//small margin to make sure the circle doesn't exceed borders
+        this.candidateCircleA.radius *= this.reduceResultBy;//small margin to make sure the circle doesn't exceed borders
+        this.candidateCircleB.radius *= this.reduceResultBy;//small margin to make sure the circle doesn't exceed borders
         var containsA = Sakri.LargestCircleInBoundsForRadiusFinder.rectangleContainsCircle(bounds, this.candidateCircleA);
         var containsB = Sakri.LargestCircleInBoundsForRadiusFinder.rectangleContainsCircle(bounds, this.candidateCircleB);
 
@@ -282,5 +293,24 @@
         return true;
     }
 
+    Sakri.LargestCircleInBoundsForRadiusFinder.prototype.setCircleOptions = function(bounds, radiusLine, radian, circle1, circle2){
+        var nextCircle = this.findLargestFittingCircleForRadian(bounds, radiusLine, radian);
+        if(nextCircle){
+            circle1.update(nextCircle.x, nextCircle.y, nextCircle.radius);
+        }else{
+            circle1.radius = 0;//0 is used to check if valid option TODO: change, not immediately clear why this is done
+        }
+
+        nextCircle = this.findLargestFittingCircleForRadian(bounds, radiusLine, Sakri.MathUtil.constrainRadianTo2PI(radian-Math.PI));
+        if(nextCircle){
+            circle2.update(nextCircle.x, nextCircle.y, nextCircle.radius);
+        }else{
+            circle2.radius = 0;//0 is used to check if valid option
+        }
+
+        if(!circle1.radius && !circle2.radius){
+            throw new Error("NO CIRCLE CANDIDATES AVAILABLE?!");//obviously this should never happen. If it does then I have some bug huntin' to do
+        }
+    }
 
 }(window));

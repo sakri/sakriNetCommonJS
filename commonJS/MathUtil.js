@@ -79,6 +79,11 @@
 
 
     //from : http://stackoverflow.com/questions/5623838/rgb-to-hex-and-hex-to-rgb
+    Sakri.MathUtil.getRandomHexColorString = function() {
+        return Sakri.MathUtil.rgbToHex(Math.floor(Math.random()*255), Math.floor(Math.random()*255), Math.floor(Math.random()*255));
+    }
+
+    //from : http://stackoverflow.com/questions/5623838/rgb-to-hex-and-hex-to-rgb
     Sakri.MathUtil.rgbToHex = function(r, g, b) {
         return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
     }
